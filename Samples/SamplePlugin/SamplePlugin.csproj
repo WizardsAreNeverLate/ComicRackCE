@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ComicRack.Plugins\ComicRack.Plugins.csproj" Private="false" />
+    <ProjectReference Include="..\..\ComicRack.Engine\ComicRack.Engine.csproj" Private="false" />
+  </ItemGroup>
+</Project>
