@@ -26,12 +26,20 @@ namespace cYo.Projects.ComicRack.Plugins
 				}
 				return GetLoadableTypes(file, assembly).Where(type => type.IsVisible).SelectMany(type => GetTypeCommands(file, type)).ToList();
 			}
+			catch (FileLoadException e) when (e.HResult == BlockedByZoneHResult)
+			{
+				PythonCommand.LogDefault("Windows blocked the .NET plugin '{0}' because it came from the internet. Open the file's Properties and select Unblock, or install the plugin from a .crplugin package.", file);
+				return Enumerable.Empty<Command>();
+			}
 			catch (Exception e)
 			{
 				PythonCommand.LogDefault("Failed to load .NET plugin '{0}': {1}", file, e.Message);
 				return Enumerable.Empty<Command>();
 			}
 		}
+
+		// COR_E_NOTSUPPORTED: .NET Framework refuses LoadFrom of a file that carries the internet zone mark.
+		private const int BlockedByZoneHResult = unchecked((int)0x80131515);
 
 		private static IEnumerable<Type> GetLoadableTypes(string file, Assembly assembly)
 		{
