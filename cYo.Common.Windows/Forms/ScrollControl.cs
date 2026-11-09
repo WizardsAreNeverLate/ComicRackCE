@@ -373,7 +373,8 @@ namespace cYo.Common.Windows.Forms
 					{
 						hVisible = false;
 						hScrollbar.Value = 0;
-						hScrollbar.Maximum = int.MaxValue;
+						// Not int.MaxValue: ScrollBar.LargeChange computes Maximum - Minimum + 1, which overflows (#114)
+						hScrollbar.Maximum = 0;
 					}
 					else
 					{
@@ -388,7 +389,8 @@ namespace cYo.Common.Windows.Forms
 					{
 						vVisible = false;
 						vScrollBar.Value = 0;
-						vScrollBar.Maximum = int.MaxValue;
+						// Not int.MaxValue: ScrollBar.LargeChange computes Maximum - Minimum + 1, which overflows (#114)
+						vScrollBar.Maximum = 0;
 					}
 					else
 					{
