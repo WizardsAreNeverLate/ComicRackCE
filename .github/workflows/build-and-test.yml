@@ -1,0 +1,58 @@
+name: Build and test
+
+on:
+  push:
+    branches: [ "master", "integration", "feat/**" ]
+    paths-ignore: [ '**.md' ]
+  pull_request:
+    paths-ignore: [ '**.md' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: setup-msbuild
+      uses: microsoft/setup-msbuild@v3
+
+    - name: Restore packages
+      run: msbuild ComicRack.sln -t:Restore -nologo -v:minimal
+
+    - name: Build ComicRack
+      run: msbuild ComicRack\ComicRack.csproj -t:Build -p:Configuration=Release -p:Platform=AnyCPU -m -nologo -v:minimal
+
+    # Also builds Samples\SamplePlugin and its .crplugin, which the plugin tests install
+    - name: Build tests
+      run: msbuild ComicRack.Plugins.Tests\ComicRack.Plugins.Tests.csproj -t:Build -p:Configuration=Release -m -nologo -v:minimal
+
+    - name: Run tests
+      shell: pwsh
+      run: |
+        $env:TESTINGPLATFORM_TELEMETRY_OPTOUT = "1"
+        ComicRack.Plugins.Tests\bin\Release\net48\ComicRack.Plugins.Tests.exe --progress off --minimum-expected-tests 1
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Upload the sample plugin
+      uses: actions/upload-artifact@v7
+      with:
+        name: SamplePlugin.crplugin
+        path: Samples/SamplePlugin/bin/Release/net48/SamplePlugin.crplugin
+        if-no-files-found: error
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results
+        path: ComicRack.Plugins.Tests/bin/Release/net48/TestResults/
+        if-no-files-found: ignore

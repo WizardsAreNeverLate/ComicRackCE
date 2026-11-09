@@ -46,6 +46,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SamplePlugin", "Samples\SamplePlugin\SamplePlugin.csproj", "{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ComicRack.Plugins.Tests", "ComicRack.Plugins.Tests\ComicRack.Plugins.Tests.csproj", "{9CF96CB9-F337-43B4-BC21-C3403A61F752}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -110,6 +116,22 @@ Global
 		{A775E7F2-2D32-4F25-BF9B-F1C9EE5F5AF2}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A775E7F2-2D32-4F25-BF9B-F1C9EE5F5AF2}.Release|x64.ActiveCfg = Release|Any CPU
 		{A775E7F2-2D32-4F25-BF9B-F1C9EE5F5AF2}.Release|x64.Build.0 = Release|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Debug|x64.Build.0 = Debug|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Release|x64.ActiveCfg = Release|Any CPU
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E}.Release|x64.Build.0 = Release|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Debug|x64.Build.0 = Debug|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Release|x64.ActiveCfg = Release|Any CPU
+		{9CF96CB9-F337-43B4-BC21-C3403A61F752}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -117,6 +139,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{C335F5E2-2C66-465E-B59B-33F8E13B287E} = {5040C603-CDAE-46A1-B23E-CFC29319E770}
 		{F21BF3C0-2205-49BC-B1DE-09BA44BE8605} = {C335F5E2-2C66-465E-B59B-33F8E13B287E}
+		{2EA39B3E-B2B6-4FEB-92B3-650F4370827E} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C85D577B-A999-424A-B0EC-330EC759489F}

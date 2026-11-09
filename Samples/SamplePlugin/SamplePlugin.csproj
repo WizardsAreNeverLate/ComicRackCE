@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ComicRack.Plugins\ComicRack.Plugins.csproj" Private="false" />
+    <ProjectReference Include="..\..\ComicRack.Engine\ComicRack.Engine.csproj" Private="false" />
+    <ProjectReference Include="..\..\cYo.Common.Windows\cYo.Common.Windows.csproj" Private="false" />
+  </ItemGroup>
+  <Target Name="PackCrPlugin" AfterTargets="Build">
+    <PropertyGroup>
+      <CrPluginStaging>$(IntermediateOutputPath)crplugin\</CrPluginStaging>
+      <CrPluginPath>$(OutDir)$(AssemblyName).crplugin</CrPluginPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <CrPluginContent Include="$(TargetPath);Package.ini" />
+    </ItemGroup>
+    <RemoveDir Directories="$(CrPluginStaging)" />
+    <Copy SourceFiles="@(CrPluginContent)" DestinationFolder="$(CrPluginStaging)" />
+    <ZipDirectory SourceDirectory="$(CrPluginStaging)" DestinationFile="$(CrPluginPath)" Overwrite="true" />
+    <Message Importance="high" Text="$(MSBuildProjectName) -> $([System.IO.Path]::GetFullPath('$(CrPluginPath)'))" />
+  </Target>
+</Project>
