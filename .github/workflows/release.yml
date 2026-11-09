@@ -1,5 +1,4 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+# Manually triggered release: build, test, package (zip + installer) and publish a GitHub Release.
 
 name: Release
 
@@ -7,20 +6,59 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version'
+        description: 'Version, without the leading "v" (e.g. 0.9.180 or 1.0)'
         required: true
         type: string
-        default: 'X.Y{.Z}'
+      draft:
+        description: 'Create the release as a draft'
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Mark the release as a pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  OUTPUT_DIR: ComicRack\bin\Release\net48
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
+    - name: Validate version
+      shell: pwsh
+      run: |
+        if ($env:VERSION -notmatch '^\d+\.\d+(\.\d+){0,2}$') {
+          Write-Error "Version '$env:VERSION' must look like X.Y, X.Y.Z or X.Y.Z.W (no leading 'v')."
+          exit 1
+        }
+
     - name: Checkout
       uses: actions/checkout@v7
       with:
         submodules: recursive
+        fetch-depth: 0
+
+    - name: Ensure tag does not already exist
+      shell: pwsh
+      run: |
+        git ls-remote --exit-code --tags origin "refs/tags/v$env:VERSION" | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+          Write-Error "Tag v$env:VERSION already exists on origin."
+          exit 1
+        }
+        exit 0
 
     - name: setup-msbuild
       uses: microsoft/setup-msbuild@v3
@@ -31,16 +69,48 @@ jobs:
     - name: Restore Packages
       run: nuget restore ComicRack.sln
 
-    - name: Build solution
+    - name: Build
       run: msbuild ComicRack\ComicRack.csproj -t:rebuild -property:Configuration=Release -property:Platform=AnyCPU
 
-    - name: Package Files
-      run: powershell Compress-Archive -Path 'ComicRack\bin\Release\net48\*' -DestinationPath 'ComicRackCE_v${{ github.event.inputs.version }}.zip' -Force
-    
-    - name: Download VC++ Redistributable (x64)
+    # Test projects are TUnit console apps (*.Tests.csproj, OutputType=Exe): build each and run its exe.
+    # Skipped with a notice when the branch has no test projects.
+    - name: Test
+      shell: pwsh
       run: |
-        mkdir ComicRack\bin\Release\net48\_CommonRedist
-        curl -L -o ComicRack\bin\Release\net48\_CommonRedist\vc_redist.x64.exe https://aka.ms/vs/17/release/vc_redist.x64.exe
+        $projects = Get-ChildItem -Recurse -Filter '*.Tests.csproj' -File |
+          Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+        if (-not $projects) {
+          Write-Output '::notice::No *.Tests.csproj found; skipping tests.'
+          exit 0
+        }
+        $failed = @()
+        foreach ($proj in $projects) {
+          Write-Output "::group::Build $($proj.Name)"
+          msbuild $proj.FullName -restore -t:build -property:Configuration=Release -property:Platform=AnyCPU
+          Write-Output '::endgroup::'
+          if ($LASTEXITCODE -ne 0) { $failed += $proj.Name; continue }
+
+          $exe = Join-Path $proj.DirectoryName "bin\Release\net48\$($proj.BaseName).exe"
+          Write-Output "::group::Run $($proj.BaseName)"
+          & $exe
+          $code = $LASTEXITCODE
+          Write-Output '::endgroup::'
+          if ($code -ne 0) { $failed += $proj.Name }
+        }
+        if ($failed) {
+          Write-Error "Failed: $($failed -join ', ')"
+          exit 1
+        }
+
+    - name: Package zip
+      shell: pwsh
+      run: Compress-Archive -Path "$env:OUTPUT_DIR\*" -DestinationPath "ComicRackCE_v$env:VERSION.zip" -Force
+
+    - name: Download VC++ Redistributable (x64)
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force "$env:OUTPUT_DIR\_CommonRedist" | Out-Null
+        curl.exe -fL -o "$env:OUTPUT_DIR\_CommonRedist\vc_redist.x64.exe" https://aka.ms/vs/17/release/vc_redist.x64.exe
 
     - name: Compile installer
       uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
@@ -48,17 +118,37 @@ jobs:
         path: Installer.iss
         options: |
           /O+
-          /DMyAppVersion=v${{ github.event.inputs.version }} 
-          /DMyAppSetupFile=ComicRackCESetup_v${{ github.event.inputs.version }}
+          /DMyAppVersion=v${{ inputs.version }}
+          /DMyAppSetupFile=ComicRackCESetup_v${{ inputs.version }}
 
-    - name: Release
-      uses: ncipollo/release-action@main
+    - name: Checksums
+      shell: pwsh
+      run: |
+        Get-FileHash "ComicRackCE_v$env:VERSION.zip", "ComicRackCESetup_v$env:VERSION.exe" -Algorithm SHA256 |
+          ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+          Set-Content -Encoding ascii SHA256SUMS.txt
+        Get-Content SHA256SUMS.txt
+
+    - name: Upload workflow artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: ComicRackCE_v${{ inputs.version }}
+        path: |
+          ComicRackCE_v${{ inputs.version }}.zip
+          ComicRackCESetup_v${{ inputs.version }}.exe
+          SHA256SUMS.txt
+        if-no-files-found: error
+
+    - name: Publish GitHub Release
+      uses: ncipollo/release-action@v1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        tag: v${{ inputs.version }}
+        name: v${{ inputs.version }}
+        commit: ${{ github.sha }}
+        draft: ${{ inputs.draft }}
+        prerelease: ${{ inputs.prerelease }}
         allowUpdates: false
         artifactErrorsFailBuild: true
-        draft: true
-        prerelease: false
-        commit: ${{ github.ref_name }}
-        tag: 'v${{ github.event.inputs.version }}'
-        artifacts: 'ComicRackCE_v${{ github.event.inputs.version }}.zip,ComicRackCESetup_v${{ github.event.inputs.version }}.exe'
+        generateReleaseNotes: true
+        artifacts: ComicRackCE_v${{ inputs.version }}.zip,ComicRackCESetup_v${{ inputs.version }}.exe,SHA256SUMS.txt
