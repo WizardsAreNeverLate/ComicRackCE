@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -194,6 +195,33 @@ namespace cYo.Projects.ComicRack.Plugins
 		public void Dispose()
 		{
 			target?.Dispose();
+		}
+
+		private string ConfigFileName => method.DeclaringType.Assembly.Location + "-" + MethodName + ".config";
+
+		public override string LoadConfig()
+		{
+			try
+			{
+				return File.ReadAllText(ConfigFileName);
+			}
+			catch
+			{
+				return string.Empty;
+			}
+		}
+
+		public override bool SaveConfig(string config)
+		{
+			try
+			{
+				File.WriteAllText(ConfigFileName, config);
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		protected override void MakeDefaults()

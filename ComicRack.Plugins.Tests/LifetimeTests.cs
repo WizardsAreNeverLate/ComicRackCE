@@ -145,4 +145,32 @@ public class LifetimeTests
 		await Assert.That(loaded.Command("Report").Invoke(NoBooks)).IsEqualTo("True");
 		await Assert.That(PluginConsole.LinesMentioning("'Thrower'")).Contains("dispose-boom");
 	}
+
+	[Test]
+	public async Task Saved_panel_config_round_trips_and_is_read_back_after_the_plugins_are_loaded_again()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Panel\")] public string Panel(ComicBook[] books) { return \"\"; }"));
+		var panel = scripts.Load().Command("Panel");
+
+		await Assert.That(panel.LoadConfig()).IsEqualTo("");
+		await Assert.That(panel.SaveConfig("<settings a=\"1\"/>")).IsTrue();
+
+		await Assert.That(panel.LoadConfig()).IsEqualTo("<settings a=\"1\"/>");
+		await Assert.That(scripts.Load().Command("Panel").LoadConfig()).IsEqualTo("<settings a=\"1\"/>");
+	}
+
+	[Test]
+	public async Task Config_of_two_commands_in_one_plugin_is_kept_apart()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin(
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"One\")] public string One(ComicBook[] books) { return \"\"; }\n" +
+			"[PluginCommand(PluginHook.QuickOpenHtml, Key = \"Two\")] public string Two(ComicBook[] books) { return \"\"; }"));
+		var loaded = scripts.Load();
+
+		loaded.Command("One").SaveConfig("first");
+
+		await Assert.That(loaded.Command("Two").LoadConfig()).IsEqualTo("");
+	}
 }
