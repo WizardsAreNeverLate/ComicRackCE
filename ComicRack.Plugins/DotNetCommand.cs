@@ -242,7 +242,7 @@ namespace cYo.Projects.ComicRack.Plugins
 		{
 			string file = Path.GetFileName(imageName);
 			var candidates = new List<string>();
-			if (Environment?.Theme.CurrentTheme != Themes.Default)
+			if (Environment != null && Environment.Theme.CurrentTheme != Themes.Default)
 			{
 				candidates.Add(Environment.Theme.CurrentTheme + file);
 			}
