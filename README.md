@@ -1,6 +1,7 @@
 > [!IMPORTANT]
 > This is a fork of https://github.com/maforget/ComicRackCE/ to cater for my personal goals.
 > Everything here is mostly aiming to stay parity with upstream, with our local changed merged into the integration branch
+> Links etc are more than likely all pointing upstream.
 
 
 
