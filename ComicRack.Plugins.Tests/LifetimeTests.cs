@@ -82,4 +82,67 @@ public class LifetimeTests
 
 		await Assert.That(throws.Invoke(NoBooks, catchErrors: true)).IsNull();
 	}
+
+	[Test]
+	public async Task Disposing_the_engine_disposes_a_plugin_instance_shared_by_two_commands_exactly_once()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin(
+			"public static int Created, Disposed;\n" +
+			"public Plugin() { Created++; }\n" +
+			"public void Dispose() { Disposed++; }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Count\")] public static string Count(ComicBook[] books) { return Created + \"/\" + Disposed; }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"A\")] public string A(ComicBook[] books) { return \"\"; }\n" +
+			"[PluginCommand(PluginHook.QuickOpenHtml, Key = \"B\")] public string B(ComicBook[] books) { return \"\"; }").Replace("class Plugin", "class Plugin : IDisposable"));
+		var loaded = scripts.Load();
+		loaded.Command("A").Invoke(NoBooks);
+		loaded.Command("B").Invoke(NoBooks);
+
+		loaded.Engine.Dispose();
+		loaded.Engine.Dispose();
+
+		await Assert.That(loaded.Command("Count").Invoke(NoBooks)).IsEqualTo("1/1");
+	}
+
+	[Test]
+	public async Task Disposing_the_engine_does_not_construct_a_plugin_that_was_never_used()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin(
+			"public static int Created, Disposed;\n" +
+			"public Plugin() { Created++; }\n" +
+			"public void Dispose() { Disposed++; }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Count\")] public static string Count(ComicBook[] books) { return Created + \"/\" + Disposed; }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"A\")] public string A(ComicBook[] books) { return \"\"; }").Replace("class Plugin", "class Plugin : IDisposable"));
+		var loaded = scripts.Load();
+
+		loaded.Engine.Dispose();
+
+		await Assert.That(loaded.Command("Count").Invoke(NoBooks)).IsEqualTo("0/0");
+	}
+
+	[Test]
+	public async Task Plugin_whose_Dispose_throws_is_logged_and_does_not_stop_other_plugins_being_disposed()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Types(
+			"public class Thrower : IDisposable {\n" +
+			"  public void Dispose() { throw new InvalidOperationException(\"dispose-boom\"); }\n" +
+			"  [PluginCommand(PluginHook.ComicInfoHtml, Key = \"Thrower\")] public string Run(ComicBook[] books) { return \"\"; }\n" +
+			"}\n" +
+			"public class Survivor : IDisposable {\n" +
+			"  public static bool Disposed;\n" +
+			"  public void Dispose() { Disposed = true; }\n" +
+			"  [PluginCommand(PluginHook.ComicInfoHtml, Key = \"Survivor\")] public string Run(ComicBook[] books) { return \"\"; }\n" +
+			"  [PluginCommand(PluginHook.QuickOpenHtml, Key = \"Report\")] public static string Report(ComicBook[] books) { return Disposed.ToString(); }\n" +
+			"}"));
+		var loaded = scripts.Load();
+		loaded.Command("Thrower").Invoke(NoBooks);
+		loaded.Command("Survivor").Invoke(NoBooks);
+
+		loaded.Engine.Dispose();
+
+		await Assert.That(loaded.Command("Report").Invoke(NoBooks)).IsEqualTo("True");
+		await Assert.That(PluginConsole.LinesMentioning("'Thrower'")).Contains("dispose-boom");
+	}
 }

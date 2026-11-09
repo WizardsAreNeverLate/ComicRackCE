@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,7 +10,7 @@ using cYo.Common.Text;
 
 namespace cYo.Projects.ComicRack.Plugins
 {
-	public class PluginEngine
+	public class PluginEngine : IDisposable
 	{
 		private readonly PluginInitializer[] initializers = new PluginInitializer[3]
 		{
@@ -218,6 +219,24 @@ namespace cYo.Projects.ComicRack.Plugins
 					if (command != null)
 					{
 						command.Configure = cfg;
+					}
+				}
+			}
+		}
+
+		public void Dispose()
+		{
+			foreach (Command command in commands.SelectMany((Command c) => new[] { c, c.Configure }))
+			{
+				if (command is IDisposable disposable)
+				{
+					try
+					{
+						disposable.Dispose();
+					}
+					catch (Exception e)
+					{
+						Command.LogDefault("Failed to dispose plugin command '{0}': {1}", command.Key, e.Message);
 					}
 				}
 			}

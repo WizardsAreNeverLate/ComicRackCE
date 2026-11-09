@@ -9,7 +9,7 @@ using cYo.Projects.ComicRack.Engine;
 
 namespace cYo.Projects.ComicRack.Plugins
 {
-	internal sealed class DotNetCommand : Command
+	internal sealed class DotNetCommand : Command, IDisposable
 	{
 		internal sealed class Target
 		{
@@ -40,6 +40,17 @@ namespace cYo.Projects.ComicRack.Plugins
 				{
 					return value ??= constructor.Invoke(constructor.GetParameters().Length == 0 ? null : new object[] { env });
 				}
+			}
+
+			public void Dispose()
+			{
+				object instance;
+				lock (gate)
+				{
+					instance = value;
+					value = null;
+				}
+				(instance as IDisposable)?.Dispose();
 			}
 		}
 
@@ -178,6 +189,11 @@ namespace cYo.Projects.ComicRack.Plugins
 				return type.Name;
 			}
 			return type.Name.Substring(0, type.Name.IndexOf('`')) + "<" + string.Join(", ", type.GetGenericArguments().Select(FormatType)) + ">";
+		}
+
+		public void Dispose()
+		{
+			target?.Dispose();
 		}
 
 		protected override void MakeDefaults()
