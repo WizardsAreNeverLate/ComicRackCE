@@ -105,8 +105,8 @@ internal static class PluginConsole
 
 	public static void Install()
 	{
-		PythonCommand.Output = capture;
-		PythonCommand.EnableLog = true;
+		Command.Output = capture;
+		Command.EnableLog = true;
 	}
 
 	public static string LinesMentioning(string text)

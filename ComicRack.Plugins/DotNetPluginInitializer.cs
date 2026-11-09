@@ -21,19 +21,19 @@ namespace cYo.Projects.ComicRack.Plugins
 				Assembly assembly = Assembly.LoadFrom(file);
 				if (!string.Equals(Path.GetFullPath(assembly.Location), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase))
 				{
-					PythonCommand.LogDefault("Skipped .NET plugin '{0}': an assembly with the same identity is already loaded from '{1}'", file, assembly.Location);
+					Command.LogDefault("Skipped .NET plugin '{0}': an assembly with the same identity is already loaded from '{1}'", file, assembly.Location);
 					return Enumerable.Empty<Command>();
 				}
 				return GetLoadableTypes(file, assembly).Where(type => type.IsVisible).SelectMany(type => GetTypeCommands(file, type)).ToList();
 			}
 			catch (FileLoadException e) when (e.HResult == BlockedByZoneHResult)
 			{
-				PythonCommand.LogDefault("Windows blocked the .NET plugin '{0}' because it came from the internet. Open the file's Properties and select Unblock, or install the plugin from a .crplugin package.", file);
+				Command.LogDefault("Windows blocked the .NET plugin '{0}' because it came from the internet. Open the file's Properties and select Unblock, or install the plugin from a .crplugin package.", file);
 				return Enumerable.Empty<Command>();
 			}
 			catch (Exception e)
 			{
-				PythonCommand.LogDefault("Failed to load .NET plugin '{0}': {1}", file, e.Message);
+				Command.LogDefault("Failed to load .NET plugin '{0}': {1}", file, e.Message);
 				return Enumerable.Empty<Command>();
 			}
 		}
@@ -51,7 +51,7 @@ namespace cYo.Projects.ComicRack.Plugins
 			{
 				foreach (string message in e.LoaderExceptions.Select(le => le.Message).Distinct())
 				{
-					PythonCommand.LogDefault("Some types in .NET plugin '{0}' could not be loaded: {1}", file, message);
+					Command.LogDefault("Some types in .NET plugin '{0}' could not be loaded: {1}", file, message);
 				}
 				return e.Types.Where(type => type != null);
 			}
@@ -86,10 +86,14 @@ namespace cYo.Projects.ComicRack.Plugins
 				{
 					continue;
 				}
-				DotNetCommand command = DotNetCommand.Create(attribute, method, target, out string error);
-				if (command == null)
+				DotNetCommand command;
+				try
 				{
-					PythonCommand.LogDefault("Skipped .NET plugin command '{0}.{1}' in '{2}': {3}", type.FullName, method.Name, file, error);
+					command = DotNetCommand.Create(attribute, method, target);
+				}
+				catch (InvalidPluginException e)
+				{
+					Command.LogDefault("Skipped .NET plugin command '{0}.{1}' in '{2}': {3}", type.FullName, method.Name, file, e.Message);
 					continue;
 				}
 				yield return command;

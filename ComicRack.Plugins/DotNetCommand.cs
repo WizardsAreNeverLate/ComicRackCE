@@ -43,36 +43,36 @@ namespace cYo.Projects.ComicRack.Plugins
 			}
 		}
 
-		private static readonly Dictionary<string, Type> hookSignatures = new Dictionary<string, Type>
+		private static readonly (PluginHook Hook, string Name, Type Signature)[] hooks =
 		{
-			{ PluginEngine.ScriptTypeLibrary, typeof(Action<ComicBook[]>) },
-			{ PluginEngine.ScriptTypeBooks, typeof(Action<ComicBook[]>) },
-			{ PluginEngine.ScriptTypeNewBooks, typeof(Action<ComicBook[]>) },
-			{ PluginEngine.ScriptTypeEditor, typeof(Action<ComicBook[]>) },
-			{ PluginEngine.ScriptTypeParseComicPath, typeof(Action<string, ComicNameInfo>) },
-			{ PluginEngine.ScriptTypeBookOpened, typeof(Action<ComicBook>) },
-			{ PluginEngine.ScriptTypeCreateBookList, typeof(Func<ComicBook[], string, string, IEnumerable<ComicBook>>) },
-			{ PluginEngine.ScriptTypeReaderResized, typeof(Action<int, int>) },
-			{ PluginEngine.ScriptTypeSearch, typeof(Func<string, string, int, Dictionary<string, string>>) },
-			{ PluginEngine.ScriptTypeConfig, typeof(Action) },
-			{ PluginEngine.ScriptTypeStartup, typeof(Action) },
-			{ PluginEngine.ScriptTypeShutdown, typeof(Func<bool, bool>) },
-			{ PluginEngine.ScriptTypeComicInfoHtml, typeof(Func<ComicBook[], string>) },
-			{ PluginEngine.ScriptTypeQuickOpenHtml, typeof(Func<ComicBook[], string>) },
-			{ PluginEngine.ScriptTypeComicInfoUI, typeof(Func<Control>) },
-			{ PluginEngine.ScriptTypeQuickOpenUI, typeof(Func<Control>) },
-			{ PluginEngine.ScriptTypeDrawThumbnailOverlay, typeof(Action<ComicBook, Graphics, Rectangle, int>) }
+			(PluginHook.Library, PluginEngine.ScriptTypeLibrary, typeof(Action<ComicBook[]>)),
+			(PluginHook.Books, PluginEngine.ScriptTypeBooks, typeof(Action<ComicBook[]>)),
+			(PluginHook.NewBooks, PluginEngine.ScriptTypeNewBooks, typeof(Action<ComicBook[]>)),
+			(PluginHook.Editor, PluginEngine.ScriptTypeEditor, typeof(Action<ComicBook[]>)),
+			(PluginHook.ParseComicPath, PluginEngine.ScriptTypeParseComicPath, typeof(Action<string, ComicNameInfo>)),
+			(PluginHook.BookOpened, PluginEngine.ScriptTypeBookOpened, typeof(Action<ComicBook>)),
+			(PluginHook.CreateBookList, PluginEngine.ScriptTypeCreateBookList, typeof(Func<ComicBook[], string, string, IEnumerable<ComicBook>>)),
+			(PluginHook.ReaderResized, PluginEngine.ScriptTypeReaderResized, typeof(Action<int, int>)),
+			(PluginHook.Search, PluginEngine.ScriptTypeSearch, typeof(Func<string, string, int, Dictionary<string, string>>)),
+			(PluginHook.Config, PluginEngine.ScriptTypeConfig, typeof(Action)),
+			(PluginHook.Startup, PluginEngine.ScriptTypeStartup, typeof(Action)),
+			(PluginHook.Shutdown, PluginEngine.ScriptTypeShutdown, typeof(Func<bool, bool>)),
+			(PluginHook.ComicInfoHtml, PluginEngine.ScriptTypeComicInfoHtml, typeof(Func<ComicBook[], string>)),
+			(PluginHook.QuickOpenHtml, PluginEngine.ScriptTypeQuickOpenHtml, typeof(Func<ComicBook[], string>)),
+			(PluginHook.ComicInfoUI, PluginEngine.ScriptTypeComicInfoUI, typeof(Func<Control>)),
+			(PluginHook.QuickOpenUI, PluginEngine.ScriptTypeQuickOpenUI, typeof(Func<Control>)),
+			(PluginHook.DrawThumbnailOverlay, PluginEngine.ScriptTypeDrawThumbnailOverlay, typeof(Action<ComicBook, Graphics, Rectangle, int>))
 		};
 
 		private readonly MethodInfo method;
 
 		private readonly Target target;
 
-		private DotNetCommand(PluginCommandAttribute attribute, MethodInfo method, Target target)
+		private DotNetCommand(PluginCommandAttribute attribute, MethodInfo method, Target target, string hook)
 		{
 			this.method = method;
 			this.target = target;
-			Hook = attribute.Hook;
+			Hook = hook;
 			Name = attribute.Name;
 			Key = attribute.Key;
 			Description = attribute.Description;
@@ -83,39 +83,45 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private string MethodName => method.DeclaringType.FullName + "." + method.Name;
 
-		public static DotNetCommand Create(PluginCommandAttribute attribute, MethodInfo method, Target target, out string error)
-		{
-			error = GetSignatureError(method, attribute.Hook);
-			if (error == null && !method.IsStatic && target == null)
-			{
-				error = "the class needs a public constructor taking IPluginEnvironment or no arguments";
-			}
-			return error == null ? new DotNetCommand(attribute, method, method.IsStatic ? null : target) : null;
-		}
-
-		private static string GetSignatureError(MethodInfo method, string hook)
+		public static DotNetCommand Create(PluginCommandAttribute attribute, MethodInfo method, Target target)
 		{
 			if (method.ContainsGenericParameters)
 			{
-				return "generic methods and types are not supported";
+				throw new InvalidPluginException("generic methods and types are not supported");
 			}
-			string[] hooks = (hook ?? string.Empty).Split(',').Select(h => h.Trim()).Where(h => h.Length > 0).ToArray();
-			if (hooks.Length == 0)
+			var selected = Select(attribute.Hook);
+			foreach (var hook in selected)
 			{
-				return "no hook given";
-			}
-			foreach (string h in hooks)
-			{
-				if (!hookSignatures.TryGetValue(h, out Type signature))
+				if (!Matches(method, hook.Signature.GetMethod("Invoke")))
 				{
-					return $"unknown hook '{h}'";
-				}
-				if (!Matches(method, signature.GetMethod("Invoke")))
-				{
-					return $"signature does not match hook '{h}', expected {FormatType(signature)}";
+					throw new InvalidPluginException($"signature does not match hook '{hook.Name}', expected {FormatType(hook.Signature)}");
 				}
 			}
-			return null;
+			if (!method.IsStatic && target == null)
+			{
+				throw new InvalidPluginException("the class needs a public constructor taking IPluginEnvironment or no arguments");
+			}
+			return new DotNetCommand(attribute, method, method.IsStatic ? null : target, string.Join(",", selected.Select(hook => hook.Name)));
+		}
+
+		private static (PluginHook Hook, string Name, Type Signature)[] Select(PluginHook value)
+		{
+			var selected = hooks.Where(hook => value.HasFlag(hook.Hook)).ToArray();
+			PluginHook unknown = selected.Aggregate(value, (rest, hook) => rest & ~hook.Hook);
+			if (unknown != PluginHook.None)
+			{
+				throw new InvalidPluginException($"unknown hook value {(int)unknown}");
+			}
+			if (selected.Length == 0)
+			{
+				throw new InvalidPluginException("no hook given");
+			}
+			// The engine recognizes a config command only when Config is its whole hook string.
+			if (selected.Length > 1 && value.HasFlag(PluginHook.Config))
+			{
+				throw new InvalidPluginException("Config cannot be combined with other hooks");
+			}
+			return selected;
 		}
 
 		private static bool Matches(MethodInfo method, MethodInfo signature)
@@ -156,7 +162,7 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		protected override void Log(string text, params object[] o)
 		{
-			PythonCommand.LogDefault(text, o);
+			LogDefault(text, o);
 		}
 
 		protected override object OnInvoke(object[] data)

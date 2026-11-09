@@ -14,7 +14,7 @@ public class PythonCoexistenceTests
 		File.WriteAllText(scripts.PathTo(@"Scripts\Py\stamp.py"),
 			"#@Name Py Stamp\n#@Hook Books\n#@Key PyStamp\ndef PyStamp(books):\n\tfor b in books:\n\t\tb.Notes += 'py;'\n");
 		scripts.Compile(@"Scripts\Cs", Source.Plugin(
-			"[PluginCommand(\"Books\", Key = \"CsStamp\")] public void Stamp(ComicBook[] books) { foreach (ComicBook b in books) b.Notes += \"cs;\"; }"));
+			"[PluginCommand(PluginHook.Books, Key = \"CsStamp\")] public void Stamp(ComicBook[] books) { foreach (ComicBook b in books) b.Notes += \"cs;\"; }"));
 		var book = new ComicBook();
 
 		var loaded = scripts.Load();
@@ -22,6 +22,35 @@ public class PythonCoexistenceTests
 
 		await Assert.That(loaded.Engine.GetCommands("Books").Select(c => c.Key)).IsEquivalentTo(new[] { "PyStamp", "CsStamp" });
 		await Assert.That(book.Notes.Split(';')).IsEquivalentTo(new[] { "py", "cs", "" });
+	}
+
+	[Test]
+	public async Task Python_plugin_with_a_hook_list_keeps_its_hook_string_and_runs_for_each_hook()
+	{
+		using var scripts = new ScriptsFolder();
+		File.WriteAllText(scripts.PathTo(@"Scripts\Py\multi.py"),
+			"#@Name Py Multi\n#@Hook Books, Editor\n#@Key PyMulti\ndef PyMulti(books):\n\tfor b in books:\n\t\tb.Notes += 'py;'\n");
+		var book = new ComicBook();
+
+		var loaded = scripts.Load();
+		loaded.Engine.Invoke("Books", new object[] { new[] { book } });
+		loaded.Engine.Invoke("Editor", new object[] { new[] { book } });
+
+		await Assert.That(loaded.Command("PyMulti").Hook).IsEqualTo("Books, Editor");
+		await Assert.That(book.Notes).IsEqualTo("py;py;");
+	}
+
+	[Test]
+	public async Task Python_plugin_print_output_reaches_the_script_console()
+	{
+		using var scripts = new ScriptsFolder();
+		File.WriteAllText(scripts.PathTo(@"Scripts\Py\talk.py"),
+			"#@Hook ComicInfoHtml\n#@Key PyTalk\ndef PyTalk(books):\n\tprint('py-said ' + ScriptPath)\n\treturn 'ok'\n");
+
+		var loaded = scripts.Load();
+		loaded.Command("PyTalk").Invoke(new object[] { new ComicBook[0] });
+
+		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("py-said ");
 	}
 
 	[Test]
