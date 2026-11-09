@@ -42,6 +42,13 @@ jobs:
         ComicRack.Plugins.Tests\bin\Release\net48\ComicRack.Plugins.Tests.exe --progress off --minimum-expected-tests 1
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+    - name: Upload ComicRack build
+      uses: actions/upload-artifact@v7
+      with:
+        name: ComicRackCE
+        path: ComicRack/bin/Release/net48/
+        if-no-files-found: error
+
     - name: Upload the sample plugin
       uses: actions/upload-artifact@v7
       with:
