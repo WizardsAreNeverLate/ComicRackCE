@@ -919,6 +919,7 @@ namespace cYo.Projects.ComicRack.Viewer
 				ScriptConsole = new ScriptOutputForm();
 				TextBoxStream logOutput = (TextBoxStream)(Command.Output = new TextBoxStream(ScriptConsole.Log));
 				Command.EnableLog = true;
+				Console.SetOut(Command.CreateConsoleWriter());
 				WebComic.SetLogOutput(logOutput);
 				ScriptConsole.Show();
 			}
