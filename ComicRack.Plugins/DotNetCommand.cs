@@ -156,7 +156,7 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		protected override void Log(string text, params object[] o)
 		{
-			PythonCommand.LogDefault(text, o);
+			LogDefault(text, o);
 		}
 
 		protected override object OnInvoke(object[] data)

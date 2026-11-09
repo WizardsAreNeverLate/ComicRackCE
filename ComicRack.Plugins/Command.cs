@@ -17,6 +17,18 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private Keys shortCutKeys;
 
+		public static Stream Output
+		{
+			get;
+			set;
+		}
+
+		public static bool EnableLog
+		{
+			get;
+			set;
+		}
+
 		[XmlAttribute]
 		[DefaultValue(null)]
 		public string Hook
@@ -191,6 +203,17 @@ namespace cYo.Projects.ComicRack.Plugins
 				return Path.Combine(basePath, Path.GetFileName(file));
 			}
 			return file;
+		}
+
+		public static void LogDefault(string text, params object[] o)
+		{
+			if (Output != null && EnableLog)
+			{
+				using (StreamWriter streamWriter = new StreamWriter(Output))
+				{
+					streamWriter.WriteLine(text, o);
+				}
+			}
 		}
 
 		protected virtual void Log(string text, params object[] o)
