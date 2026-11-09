@@ -44,9 +44,24 @@ internal sealed class ScriptsFolder : IDisposable
 	// The plugin API is always passed to the compiler, but a DLL references it only when its source uses it.
 	public string Compile(string folderUnderRoot, string source, params string[] references)
 	{
+		return Compile(folderUnderRoot, source, null, references);
+	}
+
+	public string CompileWithEmbeddedResource(string folderUnderRoot, string source, string resourceFile)
+	{
+		return Compile(folderUnderRoot, source, resourceFile, new string[0]);
+	}
+
+	private string Compile(string folderUnderRoot, string source, string resourceFile, string[] references)
+	{
 		// Assembly loads are permanent for the process, so every fixture assembly needs its own identity.
 		string dll = PathTo(Path.Combine(folderUnderRoot, "Fixture" + Guid.NewGuid().ToString("N") + ".dll"));
-		CompilerResults results = new CSharpCodeProvider().CompileAssemblyFromSource(new CompilerParameters(defaultReferences.Concat(references).ToArray(), dll), source);
+		CompilerParameters parameters = new CompilerParameters(defaultReferences.Concat(references).ToArray(), dll);
+		if (resourceFile != null)
+		{
+			parameters.EmbeddedResources.Add(resourceFile);
+		}
+		CompilerResults results = new CSharpCodeProvider().CompileAssemblyFromSource(parameters, source);
 		if (results.Errors.HasErrors)
 		{
 			throw new InvalidOperationException("Fixture source did not compile:" + Environment.NewLine + string.Join(Environment.NewLine, results.Errors.Cast<CompilerError>()) + Environment.NewLine + source);

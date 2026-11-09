@@ -6,6 +6,8 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows.Forms;
+using cYo.Common.Drawing;
+using cYo.Common.Windows.Forms.Theme;
 using cYo.Projects.ComicRack.Engine;
 
 namespace cYo.Projects.ComicRack.Plugins
@@ -79,12 +81,14 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private readonly Target target;
 
+		private readonly string imageName;
+
 		private DotNetCommand(PluginCommandAttribute attribute, MethodInfo method, Target target, string hook)
 			: this(method, target, hook, string.IsNullOrEmpty(attribute.Key) ? FullName(method) : attribute.Key)
 		{
 			Name = attribute.Name;
 			Description = attribute.Description;
-			Image = attribute.Image;
+			Image = imageName = attribute.Image;
 			Enabled = attribute.Enabled;
 			PCount = attribute.PCount;
 		}
@@ -222,6 +226,50 @@ namespace cYo.Projects.ComicRack.Plugins
 			{
 				return false;
 			}
+		}
+
+		// The base class loads Image from the plugin folder; this fills in a missing file from the plugin DLL's embedded resources.
+		protected override void OnInitialize(IPluginEnvironment env, string path)
+		{
+			base.OnInitialize(env, path);
+			if (CommandImage == null && !string.IsNullOrEmpty(imageName))
+			{
+				CommandImage = LoadEmbeddedImage();
+			}
+		}
+
+		private System.Drawing.Image LoadEmbeddedImage()
+		{
+			string file = Path.GetFileName(imageName);
+			var candidates = new List<string>();
+			if (Environment?.Theme.CurrentTheme != Themes.Default)
+			{
+				candidates.Add(Environment.Theme.CurrentTheme + file);
+			}
+			candidates.Add(file);
+			Assembly assembly = method.DeclaringType.Assembly;
+			string[] resources = assembly.GetManifestResourceNames();
+			foreach (string candidate in candidates)
+			{
+				string resource = resources.FirstOrDefault(r => r.Equals(candidate, StringComparison.OrdinalIgnoreCase) || r.EndsWith("." + candidate, StringComparison.OrdinalIgnoreCase));
+				if (resource == null)
+				{
+					continue;
+				}
+				try
+				{
+					using (Stream stream = assembly.GetManifestResourceStream(resource))
+					using (System.Drawing.Image source = System.Drawing.Image.FromStream(stream))
+					{
+						return source.CreateCopy(alwaysTrueCopy: true);
+					}
+				}
+				catch
+				{
+					return null;
+				}
+			}
+			return null;
 		}
 
 		protected override void MakeDefaults()
