@@ -86,10 +86,14 @@ namespace cYo.Projects.ComicRack.Plugins
 				{
 					continue;
 				}
-				DotNetCommand command = DotNetCommand.Create(attribute, method, target, out string error);
-				if (command == null)
+				DotNetCommand command;
+				try
 				{
-					Command.LogDefault("Skipped .NET plugin command '{0}.{1}' in '{2}': {3}", type.FullName, method.Name, file, error);
+					command = DotNetCommand.Create(attribute, method, target);
+				}
+				catch (InvalidPluginException e)
+				{
+					Command.LogDefault("Skipped .NET plugin command '{0}.{1}' in '{2}': {3}", type.FullName, method.Name, file, e.Message);
 					continue;
 				}
 				yield return command;

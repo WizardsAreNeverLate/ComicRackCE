@@ -5,12 +5,12 @@ namespace cYo.Projects.ComicRack.Plugins
 	[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 	public sealed class PluginCommandAttribute : Attribute
 	{
-		public PluginCommandAttribute(string hook)
+		public PluginCommandAttribute(PluginHook hook)
 		{
 			Hook = hook;
 		}
 
-		public string Hook
+		public PluginHook Hook
 		{
 			get;
 		}

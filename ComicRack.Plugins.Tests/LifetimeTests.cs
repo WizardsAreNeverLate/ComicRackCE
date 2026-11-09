@@ -18,9 +18,9 @@ public class LifetimeTests
 			"private static int created;\n" +
 			"private readonly string id;\n" +
 			"public Plugin() { created++; id = \"instance \" + created; }\n" +
-			"[PluginCommand(\"ComicInfoHtml\", Key = \"Created\")] public static string Created(ComicBook[] books) { return created.ToString(); }\n" +
-			"[PluginCommand(\"ComicInfoHtml\", Key = \"First\")] public string First(ComicBook[] books) { return id; }\n" +
-			"[PluginCommand(\"QuickOpenHtml\", Key = \"Second\")] public string Second(ComicBook[] books) { return id; }"));
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Created\")] public static string Created(ComicBook[] books) { return created.ToString(); }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"First\")] public string First(ComicBook[] books) { return id; }\n" +
+			"[PluginCommand(PluginHook.QuickOpenHtml, Key = \"Second\")] public string Second(ComicBook[] books) { return id; }"));
 
 		var loaded = scripts.Load();
 
@@ -38,7 +38,7 @@ public class LifetimeTests
 		Func<string, string> source = key => Source.Plugin(
 			"private readonly IPluginEnvironment env;\n" +
 			"public Plugin(IPluginEnvironment env) { this.env = env; }\n" +
-			"[PluginCommand(\"ComicInfoHtml\", Key = \"" + key + "\")] public string Where(ComicBook[] books) { return env.CommandPath; }");
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"" + key + "\")] public string Where(ComicBook[] books) { return env.CommandPath; }");
 		string one = Path.GetDirectoryName(scripts.Compile(@"Scripts\One", source("One")));
 		string two = Path.GetDirectoryName(scripts.Compile(@"Scripts\Two", source("Two")));
 
@@ -52,7 +52,7 @@ public class LifetimeTests
 	public async Task Return_values_flow_back_to_the_caller()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"Shutdown\", Key = \"Quit\")] public bool Quit(bool userClosing) { return !userClosing; }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.Shutdown, Key = \"Quit\")] public bool Quit(bool userClosing) { return !userClosing; }"));
 
 		var quit = scripts.Load().Command("Quit");
 
@@ -64,7 +64,7 @@ public class LifetimeTests
 	public async Task Plugin_exception_reaches_the_caller_unwrapped()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"Books\", Key = \"Throws\")] public void Throws(ComicBook[] books) { throw new InvalidOperationException(\"boom\"); }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.Books, Key = \"Throws\")] public void Throws(ComicBook[] books) { throw new InvalidOperationException(\"boom\"); }"));
 
 		var throws = scripts.Load().Command("Throws");
 
@@ -76,7 +76,7 @@ public class LifetimeTests
 	public async Task Invoke_with_catchErrors_returns_null_when_the_plugin_throws()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"ComicInfoHtml\", Key = \"Throws\")] public string Throws(ComicBook[] books) { throw new InvalidOperationException(\"boom\"); }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Throws\")] public string Throws(ComicBook[] books) { throw new InvalidOperationException(\"boom\"); }"));
 
 		var throws = scripts.Load().Command("Throws");
 

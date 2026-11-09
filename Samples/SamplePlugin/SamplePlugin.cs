@@ -17,13 +17,13 @@ namespace SamplePlugin
 			this.comicRack = comicRack;
 		}
 
-		[PluginCommand(PluginEngine.ScriptTypeStartup, Name = "Sample Startup")]
+		[PluginCommand(PluginHook.Startup, Name = "Sample Startup")]
 		public void Startup()
 		{
 			Trace.WriteLine("SamplePlugin started from " + comicRack.CommandPath);
 		}
 
-		[PluginCommand(PluginEngine.ScriptTypeBooks + "," + PluginEngine.ScriptTypeEditor, Name = "Stamp Notes", Description = "Adds a line to the notes of each selected book")]
+		[PluginCommand(PluginHook.Books | PluginHook.Editor, Name = "Stamp Notes", Description = "Adds a line to the notes of each selected book")]
 		public void StampNotes(ComicBook[] books)
 		{
 			string stamp = "Stamped by " + Path.GetFileName(comicRack.CommandPath);
@@ -33,7 +33,7 @@ namespace SamplePlugin
 			}
 		}
 
-		[PluginCommand(PluginEngine.ScriptTypeBooks, Name = "Edit Field...", Description = "Opens a dialog that sets a field on the selected books")]
+		[PluginCommand(PluginHook.Books, Name = "Edit Field...", Description = "Opens a dialog that sets a field on the selected books")]
 		public void EditFieldDialog(ComicBook[] books)
 		{
 			using (Form dialog = new Form())
@@ -56,7 +56,7 @@ namespace SamplePlugin
 			}
 		}
 
-		[PluginCommand(PluginEngine.ScriptTypeComicInfoUI, Name = "Field Editor", Description = "A sidebar panel that sets a field on the selected books")]
+		[PluginCommand(PluginHook.ComicInfoUI, Name = "Field Editor", Description = "A sidebar panel that sets a field on the selected books")]
 		public Control FieldEditorPanel()
 		{
 			BookFieldEditor editor = new BookFieldEditor();

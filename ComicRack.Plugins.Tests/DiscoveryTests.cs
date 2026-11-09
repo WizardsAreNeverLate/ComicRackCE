@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using cYo.Projects.ComicRack.Engine;
 
@@ -10,7 +11,7 @@ public class DiscoveryTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Plugin(
-			"[PluginCommand(\"Books\", Name = \"Stamp\", Key = \"My.Stamp\", Description = \"Stamps books\", Enabled = false, PCount = 2)]\n" +
+			"[PluginCommand(PluginHook.Books, Name = \"Stamp\", Key = \"My.Stamp\", Description = \"Stamps books\", Enabled = false, PCount = 2)]\n" +
 			"public void Run(ComicBook[] books) { }"));
 
 		var command = scripts.Load().Command("My.Stamp");
@@ -30,7 +31,7 @@ public class DiscoveryTests
 	public async Task Key_defaults_to_namespace_type_and_method_and_name_to_the_method()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"Startup\")] public void Run() { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.Startup)] public void Run() { }"));
 
 		var command = scripts.Load().Command("Fixture.Plugin.Run");
 
@@ -48,7 +49,7 @@ public class DiscoveryTests
 	public async Task Method_whose_signature_does_not_match_its_hook_is_rejected_and_the_console_names_the_expected_signature(string hook, string method, string expected)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"" + hook + "\", Key = \"M\")] " + method));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook." + hook + ", Key = \"M\")] " + method));
 
 		var loaded = scripts.Load();
 
@@ -57,30 +58,42 @@ public class DiscoveryTests
 	}
 
 	[Test]
-	public async Task Unknown_hook_is_rejected_and_reported()
+	[Arguments("PluginHook.None", "no hook given")]
+	[Arguments("(PluginHook)(1 << 30)", "unknown hook value 1073741824")]
+	[Arguments("PluginHook.Startup | (PluginHook)(1 << 30)", "unknown hook value 1073741824")]
+	[Arguments("PluginHook.Startup | PluginHook.Config", "Config cannot be combined with other hooks")]
+	public async Task Invalid_hook_value_is_rejected_and_the_console_gives_the_reason(string hook, string reason)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"NoSuchHook\", Key = \"M\")] public void M() { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(" + hook + ", Key = \"M\")] public void M() { }"));
 
 		var loaded = scripts.Load();
 
 		await Assert.That(loaded.Command("M")).IsNull();
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("unknown hook 'NoSuchHook'");
+		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.M'").And.Contains(reason);
 	}
 
 	[Test]
-	[Arguments("Books,Editor", true)]
-	[Arguments("Books, Library", true)]
-	[Arguments("Books,Startup", false)]
-	[Arguments("Books,NoSuchHook", false)]
-	public async Task Every_hook_in_a_comma_list_must_match_the_signature(string hooks, bool registered)
+	[Arguments("PluginHook.Books | PluginHook.Editor", "Books,Editor")]
+	[Arguments("PluginHook.Library | PluginHook.Books", "Library,Books")]
+	[Arguments("PluginHook.Books | PluginHook.Startup", null)]
+	public async Task Every_hook_in_a_combination_must_match_the_signature_and_the_command_answers_to_each(string hooks, string engineHook)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"" + hooks + "\", Key = \"M\")] public void M(ComicBook[] books) { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(" + hooks + ", Key = \"M\")] public void M(ComicBook[] books) { }"));
 
 		var loaded = scripts.Load();
 
-		await Assert.That(loaded.Keys).IsEquivalentTo(registered ? new[] { "M" } : new string[0]);
+		if (engineHook == null)
+		{
+			await Assert.That(loaded.Keys).IsEmpty();
+			return;
+		}
+		await Assert.That(loaded.Command("M").Hook).IsEqualTo(engineHook);
+		foreach (string hook in engineHook.Split(','))
+		{
+			await Assert.That(loaded.Engine.GetCommands(hook).Select(c => c.Key)).Contains("M");
+		}
 	}
 
 	[Test]
@@ -89,8 +102,8 @@ public class DiscoveryTests
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Plugin(
 			"private int configured;\n" +
-			"[PluginCommand(\"Books\", Key = \"Tool\")] public void Run(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
-			"[PluginCommand(\"ConfigScript\", Key = \"Tool\")] public void Configure() { configured++; }"));
+			"[PluginCommand(PluginHook.Books, Key = \"Tool\")] public void Run(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
+			"[PluginCommand(PluginHook.Config, Key = \"Tool\")] public void Configure() { configured++; }"));
 		var loaded = scripts.Load();
 		var tool = loaded.Command("Tool");
 		var book = new ComicBook();
@@ -110,7 +123,7 @@ public class DiscoveryTests
 	public async Task Parameter_and_return_types_compatible_with_the_hook_are_accepted(string hook, string method)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"" + hook + "\", Key = \"M\")] " + method));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook." + hook + ", Key = \"M\")] " + method));
 
 		await Assert.That(scripts.Load().Command("M")).IsNotNull();
 	}
@@ -123,8 +136,8 @@ public class DiscoveryTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Types(classHeader +
-			"[PluginCommand(\"Startup\", Key = \"Instance\")] public void Run() { }\n" +
-			"[PluginCommand(\"ComicInfoHtml\", Key = \"Static\")] public static string Html(ComicBook[] books) { return \"static ok\"; }\n" +
+			"[PluginCommand(PluginHook.Startup, Key = \"Instance\")] public void Run() { }\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Static\")] public static string Html(ComicBook[] books) { return \"static ok\"; }\n" +
 			"}"));
 
 		var loaded = scripts.Load();

@@ -12,7 +12,7 @@ namespace ComicRack.Plugins.Tests;
 
 public class LoadingSafetyTests
 {
-	private const string StartupPlugin = "[PluginCommand(\"Startup\", Key = \"Survivor\")] public static void Run() { }";
+	private const string StartupPlugin = "[PluginCommand(PluginHook.Startup, Key = \"Survivor\")] public static void Run() { }";
 
 	[Test]
 	public async Task Dll_that_does_not_reference_the_plugin_api_is_never_execution_loaded()
@@ -58,7 +58,7 @@ public class LoadingSafetyTests
 		using var scripts = new ScriptsFolder();
 		string missing = scripts.Compile("Elsewhere", "namespace Missing { public class Base { } }");
 		scripts.Compile(@"Scripts\Mine", Source.Types(
-			"public class Broken : Missing.Base { [PluginCommand(\"Startup\", Key = \"Broken\")] public void Run() { } }\n" +
+			"public class Broken : Missing.Base { [PluginCommand(PluginHook.Startup, Key = \"Broken\")] public void Run() { } }\n" +
 			"public class Plugin { " + StartupPlugin + " }"), missing);
 
 		var loaded = scripts.Load();
@@ -73,7 +73,7 @@ public class LoadingSafetyTests
 	{
 		using var scripts = new ScriptsFolder();
 		string helper = scripts.Compile(@"Scripts\Mine", "namespace Helper { public static class Stamp { public static string Text() { return \"from helper\"; } } }");
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"ComicInfoHtml\", Key = \"M\")] public string M(ComicBook[] books) { return Helper.Stamp.Text(); }"), helper);
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.ComicInfoHtml, Key = \"M\")] public string M(ComicBook[] books) { return Helper.Stamp.Text(); }"), helper);
 
 		var command = scripts.Load().Command("M");
 

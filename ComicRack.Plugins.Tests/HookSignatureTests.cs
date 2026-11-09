@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,37 +8,37 @@ namespace ComicRack.Plugins.Tests;
 
 public class HookSignatureTests
 {
-	public static IEnumerable<(string Hook, string Method)> CommandHookSignatures() => new[]
+	public static IEnumerable<(PluginHook Hook, string EngineHook, string Method)> CommandHookSignatures() => new[]
 	{
-		("Library", "public void M(ComicBook[] books) { }"),
-		("Books", "public void M(ComicBook[] books) { }"),
-		("NewBooks", "public void M(ComicBook[] books) { }"),
-		("Editor", "public void M(ComicBook[] books) { }"),
-		("ParseComicPath", "public void M(string path, ComicNameInfo info) { }"),
-		("BookOpened", "public void M(ComicBook book) { }"),
-		("CreateBookList", "public IEnumerable<ComicBook> M(ComicBook[] books, string a, string b) { return books; }"),
-		("ReaderResized", "public void M(int width, int height) { }"),
-		("NetSearch", "public Dictionary<string, string> M(string a, string b, int c) { return null; }"),
-		("Startup", "public void M() { }"),
-		("Shutdown", "public bool M(bool userClosing) { return true; }"),
-		("ComicInfoHtml", "public string M(ComicBook[] books) { return null; }"),
-		("QuickOpenHtml", "public string M(ComicBook[] books) { return null; }"),
-		("ComicInfoUI", "public System.Windows.Forms.Control M() { return null; }"),
-		("QuickOpenUI", "public System.Windows.Forms.Control M() { return null; }"),
-		("DrawThumbnailOverlay", "public void M(ComicBook book, System.Drawing.Graphics g, System.Drawing.Rectangle bounds, int flags) { }")
+		(PluginHook.Library, "Library", "public void M(ComicBook[] books) { }"),
+		(PluginHook.Books, "Books", "public void M(ComicBook[] books) { }"),
+		(PluginHook.NewBooks, "NewBooks", "public void M(ComicBook[] books) { }"),
+		(PluginHook.Editor, "Editor", "public void M(ComicBook[] books) { }"),
+		(PluginHook.ParseComicPath, "ParseComicPath", "public void M(string path, ComicNameInfo info) { }"),
+		(PluginHook.BookOpened, "BookOpened", "public void M(ComicBook book) { }"),
+		(PluginHook.CreateBookList, "CreateBookList", "public IEnumerable<ComicBook> M(ComicBook[] books, string a, string b) { return books; }"),
+		(PluginHook.ReaderResized, "ReaderResized", "public void M(int width, int height) { }"),
+		(PluginHook.Search, "NetSearch", "public Dictionary<string, string> M(string a, string b, int c) { return null; }"),
+		(PluginHook.Startup, "Startup", "public void M() { }"),
+		(PluginHook.Shutdown, "Shutdown", "public bool M(bool userClosing) { return true; }"),
+		(PluginHook.ComicInfoHtml, "ComicInfoHtml", "public string M(ComicBook[] books) { return null; }"),
+		(PluginHook.QuickOpenHtml, "QuickOpenHtml", "public string M(ComicBook[] books) { return null; }"),
+		(PluginHook.ComicInfoUI, "ComicInfoUI", "public System.Windows.Forms.Control M() { return null; }"),
+		(PluginHook.QuickOpenUI, "QuickOpenUI", "public System.Windows.Forms.Control M() { return null; }"),
+		(PluginHook.DrawThumbnailOverlay, "DrawThumbnailOverlay", "public void M(ComicBook book, System.Drawing.Graphics g, System.Drawing.Rectangle bounds, int flags) { }")
 	};
 
 	[Test]
 	[MethodDataSource(nameof(CommandHookSignatures))]
-	public async Task Method_with_the_hook_signature_is_registered_for_that_hook(string hook, string method)
+	public async Task Method_with_the_hook_signature_is_registered_under_the_engine_hook_name(PluginHook hook, string engineHook, string method)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(\"" + hook + "\", Key = \"M\")] " + method));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook." + hook + ", Key = \"M\")] " + method));
 
 		var loaded = scripts.Load();
 
 		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "M" });
-		await Assert.That(loaded.Command("M").Hook).IsEqualTo(hook);
+		await Assert.That(loaded.Command("M").Hook).IsEqualTo(engineHook);
 	}
 
 	[Test]
@@ -45,6 +46,14 @@ public class HookSignatureTests
 	{
 		var commandHooks = PluginEngine.ValidHooks.Keys.Where(hook => hook != PluginEngine.ScriptTypeConfig);
 
-		await Assert.That(CommandHookSignatures().Select(s => s.Hook)).IsEquivalentTo(commandHooks);
+		await Assert.That(CommandHookSignatures().Select(s => s.EngineHook)).IsEquivalentTo(commandHooks);
+	}
+
+	[Test]
+	public async Task Every_PluginHook_value_has_a_signature_case()
+	{
+		var commandValues = Enum.GetValues(typeof(PluginHook)).Cast<PluginHook>().Where(hook => hook != PluginHook.None && hook != PluginHook.Config);
+
+		await Assert.That(CommandHookSignatures().Select(s => s.Hook)).IsEquivalentTo(commandValues);
 	}
 }

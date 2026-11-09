@@ -14,7 +14,7 @@ public class PythonCoexistenceTests
 		File.WriteAllText(scripts.PathTo(@"Scripts\Py\stamp.py"),
 			"#@Name Py Stamp\n#@Hook Books\n#@Key PyStamp\ndef PyStamp(books):\n\tfor b in books:\n\t\tb.Notes += 'py;'\n");
 		scripts.Compile(@"Scripts\Cs", Source.Plugin(
-			"[PluginCommand(\"Books\", Key = \"CsStamp\")] public void Stamp(ComicBook[] books) { foreach (ComicBook b in books) b.Notes += \"cs;\"; }"));
+			"[PluginCommand(PluginHook.Books, Key = \"CsStamp\")] public void Stamp(ComicBook[] books) { foreach (ComicBook b in books) b.Notes += \"cs;\"; }"));
 		var book = new ComicBook();
 
 		var loaded = scripts.Load();
