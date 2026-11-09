@@ -919,6 +919,7 @@ namespace cYo.Projects.ComicRack.Viewer
 				ScriptConsole = new ScriptOutputForm();
 				TextBoxStream logOutput = (TextBoxStream)(Command.Output = new TextBoxStream(ScriptConsole.Log));
 				Command.EnableLog = true;
+				Console.SetOut(Command.CreateConsoleWriter());
 				WebComic.SetLogOutput(logOutput);
 				ScriptConsole.Show();
 			}
@@ -1065,6 +1066,7 @@ namespace cYo.Projects.ComicRack.Viewer
 
 		private static void MainFormFormClosed(object sender, FormClosedEventArgs e)
 		{
+			ScriptUtility.Scripts?.Dispose();
 			AutomaticProgressDialog.Process(null, TR.Messages["ClosingComicRack", "Closing ComicRack"], TR.Messages["SaveAllData", "Saving all Data to Disk..."], 1500, CleanUp, AutomaticProgressDialogOptions.None);
 		}
 

@@ -61,7 +61,6 @@ public class DiscoveryTests
 	[Arguments("PluginHook.None", "no hook given")]
 	[Arguments("(PluginHook)(1 << 30)", "unknown hook value 1073741824")]
 	[Arguments("PluginHook.Startup | (PluginHook)(1 << 30)", "unknown hook value 1073741824")]
-	[Arguments("PluginHook.Startup | PluginHook.Config", "Config cannot be combined with other hooks")]
 	public async Task Invalid_hook_value_is_rejected_and_the_console_gives_the_reason(string hook, string reason)
 	{
 		using var scripts = new ScriptsFolder();
@@ -97,13 +96,13 @@ public class DiscoveryTests
 	}
 
 	[Test]
-	public async Task ConfigScript_method_with_the_same_key_becomes_the_commands_Configure_action_on_the_same_instance()
+	public async Task Configure_method_named_by_the_attribute_becomes_the_commands_Configure_action_on_the_same_instance()
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Plugin(
 			"private int configured;\n" +
-			"[PluginCommand(PluginHook.Books, Key = \"Tool\")] public void Run(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
-			"[PluginCommand(PluginHook.Config, Key = \"Tool\")] public void Configure() { configured++; }"));
+			"[PluginCommand(PluginHook.Books, Key = \"Tool\", Configure = \"Settings\")] public void Run(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
+			"public void Settings() { configured++; }"));
 		var loaded = scripts.Load();
 		var tool = loaded.Command("Tool");
 		var book = new ComicBook();
@@ -112,7 +111,43 @@ public class DiscoveryTests
 		tool.Invoke(new object[] { new[] { book } });
 
 		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "Tool" });
+		await Assert.That(tool.Configure.Hook).IsEqualTo("ConfigScript");
 		await Assert.That(book.Notes).IsEqualTo("configured 1");
+	}
+
+	[Test]
+	public async Task Configure_pairs_with_a_command_whose_key_defaults_to_the_method_name_and_may_be_static()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin(
+			"public static int Configured;\n" +
+			"[PluginCommand(PluginHook.ComicInfoHtml, Configure = \"Settings\")] public string Run(ComicBook[] books) { return Configured.ToString(); }\n" +
+			"public static void Settings() { Configured++; }"));
+		var loaded = scripts.Load();
+
+		var run = loaded.Command("Fixture.Plugin.Run");
+		run.Configure.Invoke(null);
+
+		await Assert.That(run.Invoke(new object[] { new ComicBook[0] })).IsEqualTo("1");
+		await Assert.That(run.Configure.Key).IsEqualTo("Fixture.Plugin.Run");
+		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "Fixture.Plugin.Run" });
+	}
+
+	[Test]
+	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Missing\")] public void M() { }", "'Missing'")]
+	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic void Settings(int x) { }", "'Settings'")]
+	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic int Settings() { return 0; }", "'Settings'")]
+	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic void Settings() { }\npublic void Settings(int x) { }", "'Settings'")]
+	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\nprivate void Settings() { }", "'Settings'")]
+	public async Task Command_with_an_unusable_configure_method_is_skipped_and_the_console_names_the_method(string members, string method)
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin(members));
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Command("M")).IsNull();
+		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.M'").And.Contains(method);
 	}
 
 	[Test]

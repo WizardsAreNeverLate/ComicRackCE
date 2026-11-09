@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using System.Xml.Serialization;
 using cYo.Common.Drawing;
@@ -203,6 +204,12 @@ namespace cYo.Projects.ComicRack.Plugins
 				return Path.Combine(basePath, Path.GetFileName(file));
 			}
 			return file;
+		}
+
+		public static TextWriter CreateConsoleWriter()
+		{
+			Stream output = Output;
+			return output == null ? TextWriter.Null : TextWriter.Synchronized(new StreamWriter(output, Encoding.Default) { AutoFlush = true });
 		}
 
 		public static void LogDefault(string text, params object[] o)

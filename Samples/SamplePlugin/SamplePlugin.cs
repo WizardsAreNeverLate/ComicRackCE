@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -20,7 +19,7 @@ namespace SamplePlugin
 		[PluginCommand(PluginHook.Startup, Name = "Sample Startup")]
 		public void Startup()
 		{
-			Trace.WriteLine("SamplePlugin started from " + comicRack.CommandPath);
+			Console.WriteLine("SamplePlugin started from " + comicRack.CommandPath);
 		}
 
 		[PluginCommand(PluginHook.Books | PluginHook.Editor, Name = "Stamp Notes", Description = "Adds a line to the notes of each selected book")]
