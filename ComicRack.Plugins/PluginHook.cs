@@ -15,13 +15,12 @@ namespace cYo.Projects.ComicRack.Plugins
 		CreateBookList = 1 << 6,
 		ReaderResized = 1 << 7,
 		Search = 1 << 8,
-		Config = 1 << 9,
-		Startup = 1 << 10,
-		Shutdown = 1 << 11,
-		ComicInfoHtml = 1 << 12,
-		QuickOpenHtml = 1 << 13,
-		ComicInfoUI = 1 << 14,
-		QuickOpenUI = 1 << 15,
-		DrawThumbnailOverlay = 1 << 16
+		Startup = 1 << 9,
+		Shutdown = 1 << 10,
+		ComicInfoHtml = 1 << 11,
+		QuickOpenHtml = 1 << 12,
+		ComicInfoUI = 1 << 13,
+		QuickOpenUI = 1 << 14,
+		DrawThumbnailOverlay = 1 << 15
 	}
 }

@@ -54,7 +54,6 @@ namespace cYo.Projects.ComicRack.Plugins
 			(PluginHook.CreateBookList, PluginEngine.ScriptTypeCreateBookList, typeof(Func<ComicBook[], string, string, IEnumerable<ComicBook>>)),
 			(PluginHook.ReaderResized, PluginEngine.ScriptTypeReaderResized, typeof(Action<int, int>)),
 			(PluginHook.Search, PluginEngine.ScriptTypeSearch, typeof(Func<string, string, int, Dictionary<string, string>>)),
-			(PluginHook.Config, PluginEngine.ScriptTypeConfig, typeof(Action)),
 			(PluginHook.Startup, PluginEngine.ScriptTypeStartup, typeof(Action)),
 			(PluginHook.Shutdown, PluginEngine.ScriptTypeShutdown, typeof(Func<bool, bool>)),
 			(PluginHook.ComicInfoHtml, PluginEngine.ScriptTypeComicInfoHtml, typeof(Func<ComicBook[], string>)),
@@ -69,26 +68,31 @@ namespace cYo.Projects.ComicRack.Plugins
 		private readonly Target target;
 
 		private DotNetCommand(PluginCommandAttribute attribute, MethodInfo method, Target target, string hook)
+			: this(method, target, hook, string.IsNullOrEmpty(attribute.Key) ? FullName(method) : attribute.Key)
 		{
-			this.method = method;
-			this.target = target;
-			Hook = hook;
 			Name = attribute.Name;
-			Key = attribute.Key;
 			Description = attribute.Description;
 			Image = attribute.Image;
 			Enabled = attribute.Enabled;
 			PCount = attribute.PCount;
 		}
 
-		private string MethodName => method.DeclaringType.FullName + "." + method.Name;
-
-		public static DotNetCommand Create(PluginCommandAttribute attribute, MethodInfo method, Target target)
+		private DotNetCommand(MethodInfo method, Target target, string hook, string key)
 		{
-			if (method.ContainsGenericParameters)
-			{
-				throw new InvalidPluginException("generic methods and types are not supported");
-			}
+			this.method = method;
+			this.target = target;
+			Hook = hook;
+			Key = key;
+		}
+
+		private string MethodName => FullName(method);
+
+		private static string FullName(MethodInfo method) => method.DeclaringType.FullName + "." + method.Name;
+
+		// A Configure command carries the same Key as its main command so the engine pairs them like it does for Python.
+		public static IEnumerable<DotNetCommand> Create(PluginCommandAttribute attribute, MethodInfo method, Target target)
+		{
+			CheckCallable(method, target);
 			var selected = Select(attribute.Hook);
 			foreach (var hook in selected)
 			{
@@ -97,11 +101,44 @@ namespace cYo.Projects.ComicRack.Plugins
 					throw new InvalidPluginException($"signature does not match hook '{hook.Name}', expected {FormatType(hook.Signature)}");
 				}
 			}
+			var main = new DotNetCommand(attribute, method, method.IsStatic ? null : target, string.Join(",", selected.Select(hook => hook.Name)));
+			yield return main;
+			if (!string.IsNullOrEmpty(attribute.Configure))
+			{
+				MethodInfo configure = FindConfigure(method.DeclaringType, attribute.Configure);
+				CheckCallable(configure, target);
+				yield return new DotNetCommand(configure, configure.IsStatic ? null : target, PluginEngine.ScriptTypeConfig, main.Key);
+			}
+		}
+
+		private static MethodInfo FindConfigure(Type type, string name)
+		{
+			MethodInfo[] candidates = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Where(m => m.Name == name).ToArray();
+			if (candidates.Length == 0)
+			{
+				throw new InvalidPluginException($"configure method '{name}' not found; it must be a public method declared in {type.FullName}");
+			}
+			if (candidates.Length > 1)
+			{
+				throw new InvalidPluginException($"configure method '{name}' is overloaded");
+			}
+			if (!Matches(candidates[0], typeof(Action).GetMethod("Invoke")))
+			{
+				throw new InvalidPluginException($"configure method '{name}' must have the signature {FormatType(typeof(Action))}");
+			}
+			return candidates[0];
+		}
+
+		private static void CheckCallable(MethodInfo method, Target target)
+		{
+			if (method.ContainsGenericParameters)
+			{
+				throw new InvalidPluginException("generic methods and types are not supported");
+			}
 			if (!method.IsStatic && target == null)
 			{
 				throw new InvalidPluginException("the class needs a public constructor taking IPluginEnvironment or no arguments");
 			}
-			return new DotNetCommand(attribute, method, method.IsStatic ? null : target, string.Join(",", selected.Select(hook => hook.Name)));
 		}
 
 		private static (PluginHook Hook, string Name, Type Signature)[] Select(PluginHook value)
@@ -115,11 +152,6 @@ namespace cYo.Projects.ComicRack.Plugins
 			if (selected.Length == 0)
 			{
 				throw new InvalidPluginException("no hook given");
-			}
-			// The engine recognizes a config command only when Config is its whole hook string.
-			if (selected.Length > 1 && value.HasFlag(PluginHook.Config))
-			{
-				throw new InvalidPluginException("Config cannot be combined with other hooks");
 			}
 			return selected;
 		}
@@ -150,10 +182,6 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		protected override void MakeDefaults()
 		{
-			if (string.IsNullOrEmpty(Key))
-			{
-				Key = MethodName;
-			}
 			if (string.IsNullOrEmpty(Name))
 			{
 				Name = method.Name;

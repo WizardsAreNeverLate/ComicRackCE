@@ -52,7 +52,7 @@ public class HookSignatureTests
 	[Test]
 	public async Task Every_PluginHook_value_has_a_signature_case()
 	{
-		var commandValues = Enum.GetValues(typeof(PluginHook)).Cast<PluginHook>().Where(hook => hook != PluginHook.None && hook != PluginHook.Config);
+		var commandValues = Enum.GetValues(typeof(PluginHook)).Cast<PluginHook>().Where(hook => hook != PluginHook.None);
 
 		await Assert.That(CommandHookSignatures().Select(s => s.Hook)).IsEquivalentTo(commandValues);
 	}

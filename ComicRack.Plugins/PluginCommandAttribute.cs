@@ -27,6 +27,12 @@ namespace cYo.Projects.ComicRack.Plugins
 			set;
 		}
 
+		public string Configure
+		{
+			get;
+			set;
+		}
+
 		public string Description
 		{
 			get;
