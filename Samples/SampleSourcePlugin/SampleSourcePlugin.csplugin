@@ -1,0 +1,13 @@
+; This file makes the folder a C# source plugin.
+; ComicRack compiles all .cs files of the folder when it starts and keeps the result until a file changes.
+; All entries are optional.
+[Plugin]
+
+; DLLs that the plugin uses, relative to this folder and separated by semicolons.
+References=lib/SampleLibrary.dll
+
+; More assemblies of the .NET Framework or of ComicRack, by name and separated by semicolons.
+;FrameworkReferences=System.Web
+
+; The C# language version. The default is the newest version that ComicRack knows.
+;LangVersion=latest

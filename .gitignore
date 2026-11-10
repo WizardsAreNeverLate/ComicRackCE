@@ -346,3 +346,6 @@ healthchecksdb
 /ComicRack/Properties/launchSettings.json
 /ComicRackCESetup*.exe
 /ComicRack/myressources.res
+
+# The sample library is copied here by its build
+Samples/SampleSourcePlugin/lib/

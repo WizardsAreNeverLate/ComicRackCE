@@ -74,14 +74,14 @@ public class LifecycleTests
 	public async Task Exception_of_a_hook_reaches_the_caller_unwrapped_and_is_logged()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("Thrower", "IStartup", "public void Execute() { throw new FormatException(\"bad issue number 7c1d\"); }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Thrower", "IStartup", "public void Execute() { throw new FormatException(\"bad issue number zq-thrown\"); }"));
 		Command command = scripts.Load().Command("Thrower", PluginEngine.ScriptTypeStartup);
 
 		var thrown = await Assert.That(() => command.Invoke(null)).ThrowsExactly<FormatException>();
 
-		await Assert.That(thrown.Message).IsEqualTo("bad issue number 7c1d");
+		await Assert.That(thrown.Message).IsEqualTo("bad issue number zq-thrown");
 		await Assert.That(thrown.StackTrace).Contains("Fixture.Plugin.Execute");
-		await Assert.That(PluginConsole.LinesMentioning("7c1d")).IsEqualTo("Thrower.Startup failed: bad issue number 7c1d");
+		await Assert.That(PluginConsole.LinesMentioning("zq-thrown")).IsEqualTo("Thrower.Startup failed: bad issue number zq-thrown");
 	}
 
 	[Test]

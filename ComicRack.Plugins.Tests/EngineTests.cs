@@ -146,7 +146,7 @@ public class EngineTests
 	public async Task Dispose_of_the_engine_disposes_each_disposable_plugin_once_even_when_another_one_throws()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\A", Source.Plugin("Thrower", "IStartup, IDisposable", "public void Execute() { } public void Dispose() { throw new InvalidOperationException(\"cannot close 5e0a\"); }"));
+		scripts.Compile(@"Scripts\A", Source.Plugin("Thrower", "IStartup, IDisposable", "public void Execute() { } public void Dispose() { throw new InvalidOperationException(\"cannot close zq-dispose\"); }"));
 		string good = scripts.Compile(@"Scripts\B", Source.Plugin("Good", "IStartup, IShutdown, IConfig, IDisposable", """
 			void IStartup.Execute() { }
 			bool IShutdown.Execute(bool user_is_closing) { return true; }
@@ -160,6 +160,6 @@ public class EngineTests
 		loaded.Engine.Dispose();
 
 		await Assert.That(File.ReadAllText(Path.Combine(Path.GetDirectoryName(good), "disposed.txt"))).IsEqualTo("x");
-		await Assert.That(PluginConsole.LinesMentioning("5e0a")).IsEqualTo("Failed to dispose .NET plugin 'Thrower': cannot close 5e0a");
+		await Assert.That(PluginConsole.LinesMentioning("zq-dispose")).IsEqualTo("Failed to dispose .NET plugin 'Thrower': cannot close zq-dispose");
 	}
 }

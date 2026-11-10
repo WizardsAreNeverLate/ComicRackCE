@@ -20,5 +20,15 @@
     <ProjectReference Include="..\ComicRack.Plugins.Compiler\ComicRack.Plugins.Compiler.csproj" />
     <ProjectReference Include="..\ComicRack.Engine\ComicRack.Engine.csproj" />
     <ProjectReference Include="..\cYo.Common.Windows\cYo.Common.Windows.csproj" />
+    <ProjectReference Include="..\Samples\SamplePlugin\SamplePlugin.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Samples\SampleLibrary\SampleLibrary.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <!-- The tests install the samples the way a user does: the built DLL of the compiled sample, the folder of the source sample. -->
+  <Target Name="CopySamples" AfterTargets="Build">
+    <ItemGroup>
+      <SampleSourcePluginFile Include="..\Samples\SampleSourcePlugin\**" />
+    </ItemGroup>
+    <Copy SourceFiles="..\Samples\SamplePlugin\bin\$(Configuration)\net48\SamplePlugin.dll" DestinationFolder="$(OutDir)Samples\SamplePlugin" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SampleSourcePluginFile)" DestinationFolder="$(OutDir)Samples\SampleSourcePlugin\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

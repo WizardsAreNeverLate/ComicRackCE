@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Stands in for a third-party library that a plugin ships. It knows nothing about ComicRack. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <!-- SampleSourcePlugin references the library as lib/SampleLibrary.dll, so the build puts it there. -->
+  <Target Name="CopyToSampleSourcePlugin" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\SampleSourcePlugin\lib" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
