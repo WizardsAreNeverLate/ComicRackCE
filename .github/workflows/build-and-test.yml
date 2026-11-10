@@ -1,0 +1,38 @@
+name: Build and test
+
+on:
+  push:
+    branches: [ "master", "integration", "feat/**" ]
+    paths-ignore: [ '**.md' ]
+  pull_request:
+    paths-ignore: [ '**.md' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    # Build.ps1 finds MSBuild through vswhere, which windows-latest ships with Visual Studio
+    - name: Build and run tests
+      shell: pwsh
+      env:
+        TESTINGPLATFORM_TELEMETRY_OPTOUT: "1"
+      run: .\Build.ps1 -Configuration Release -Test
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results
+        path: ComicRack.Plugins.Tests/bin/Release/net48/TestResults/
+        if-no-files-found: ignore
