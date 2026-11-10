@@ -46,7 +46,7 @@ public class SampleTests
 
 		var loaded = scripts.Load();
 
-		await Assert.That(loaded.Hooks("SamplePlugin")).IsEquivalentTo(new[] { PluginEngine.ScriptTypeLibrary, PluginEngine.ScriptTypeBooks, PluginEngine.ScriptTypeComicInfoHtml });
+		await Assert.That(loaded.Hooks("SamplePlugin")).IsEquivalentTo(new[] { PluginEngine.ScriptTypeLibrary, PluginEngine.ScriptTypeBooks, PluginEngine.ScriptTypeComicInfoHtml, PluginEngine.ScriptTypeStartup });
 		Command books = loaded.Command("SamplePlugin", PluginEngine.ScriptTypeBooks);
 		await Assert.That(books.CommandImage).IsNotNull();
 		await Assert.That(books.Configure?.Hook).IsEqualTo(PluginEngine.ScriptTypeConfig);

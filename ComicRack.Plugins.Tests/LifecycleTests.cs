@@ -12,6 +12,15 @@ public class LifecycleTests
 {
 	private static readonly object[] NoBooks = { new ComicBook[0] };
 
+	// A constructor that leaves one "x" in created.txt of the plugin folder each time it runs.
+	private const string CountedConstructor = "public Plugin(IPluginContext context) { System.IO.File.AppendAllText(System.IO.Path.Combine(context.ScriptPath, \"created.txt\"), \"x\"); }\n";
+
+	private static string Created(string dll)
+	{
+		string file = Path.Combine(Path.GetDirectoryName(dll), "created.txt");
+		return File.Exists(file) ? File.ReadAllText(file) : "";
+	}
+
 	[Test]
 	public async Task One_instance_of_the_class_is_created_and_shared_by_all_its_hooks()
 	{
@@ -28,46 +37,121 @@ public class LifecycleTests
 
 		await Assert.That(loaded.Command("Shared", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks)).IsEqualTo("instance 1");
 		await Assert.That(loaded.Command("Shared", PluginEngine.ScriptTypeQuickOpenHtml).Invoke(NoBooks)).IsEqualTo("instance 1");
+		await Assert.That(loaded.Command("Shared", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks)).IsEqualTo("instance 1");
 	}
 
 	[Test]
-	public async Task OnLoad_runs_once_with_the_environment_and_the_plugin_folder_that_the_constructor_does_not_have()
+	public async Task Scan_creates_no_plugin_class()
+	{
+		using var scripts = new ScriptsFolder();
+		string dll = scripts.Compile(@"Scripts\Mine", Source.Plugin("Lazy", "IStartup, IShutdown, IConfig, IDisposable", CountedConstructor + """
+			void IStartup.Execute() { }
+			bool IShutdown.Execute(bool user_is_closing) { return true; }
+			void IConfig.Execute() { }
+			public void Dispose() { }
+			""", attribute: "Image = \"icon.png\""));
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Hooks("Lazy")).IsEquivalentTo(new[] { PluginEngine.ScriptTypeStartup, PluginEngine.ScriptTypeShutdown });
+		await Assert.That(Created(dll)).IsEqualTo("");
+	}
+
+	[Test]
+	public async Task Disabled_plugin_is_never_created()
+	{
+		using var scripts = new ScriptsFolder();
+		string dll = scripts.Compile(@"Scripts\Mine", Source.Plugin("Off", "IStartup, IShutdown", CountedConstructor + """
+			void IStartup.Execute() { }
+			bool IShutdown.Execute(bool user_is_closing) { return true; }
+			""", attribute: "Enabled = false"));
+		var loaded = scripts.Load();
+
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeStartup, new object[0]);
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeShutdown, new object[] { true });
+		loaded.Engine.Dispose();
+
+		await Assert.That(loaded.Hooks("Off")).IsEquivalentTo(new[] { PluginEngine.ScriptTypeStartup, PluginEngine.ScriptTypeShutdown });
+		await Assert.That(Created(dll)).IsEqualTo("");
+	}
+
+	[Test]
+	public async Task Constructor_runs_once_on_the_first_hook_with_the_environment_and_the_plugin_folder()
 	{
 		using var scripts = new ScriptsFolder();
 		string dll = scripts.Compile(@"Scripts\Mine", Source.Plugin("Loaded", "IComicInfoHtml, IQuickOpenHtml, IStartup", """
-			private string seen = "";
-			public Plugin() { seen += "ctor:" + (ComicRack == null) + ":" + (ScriptPath == null) + ";"; }
-			protected override void OnLoad() { seen += "load:" + ComicRack.CommandPath + ":" + ScriptPath + ";"; }
+			private readonly string seen;
+			public Plugin(IPluginContext context)
+			{
+				seen = context.ComicRack.CommandPath + "|" + context.ScriptPath;
+				System.IO.File.AppendAllText(System.IO.Path.Combine(context.ScriptPath, "created.txt"), "x");
+			}
 			string IComicInfoHtml.Execute(ComicBook[] books) { return seen; }
 			string IQuickOpenHtml.Execute(ComicBook[] books) { return seen; }
 			public void Execute() { }
 			"""));
 		string folder = Path.GetDirectoryName(dll);
+		var loaded = scripts.Load();
 
-		object seen = scripts.Load().Command("Loaded", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks);
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeStartup, new object[0]);
+		object seenByInfo = loaded.Command("Loaded", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks);
+		object seenByQuickOpen = loaded.Command("Loaded", PluginEngine.ScriptTypeQuickOpenHtml).Invoke(NoBooks);
 
-		await Assert.That(seen).IsEqualTo($"ctor:True:True;load:{folder}:{folder};");
+		await Assert.That(seenByInfo).IsEqualTo(folder + "|" + folder);
+		await Assert.That(seenByQuickOpen).IsEqualTo(folder + "|" + folder);
+		await Assert.That(Created(dll)).IsEqualTo("x");
 	}
 
 	[Test]
-	public async Task Class_whose_OnLoad_throws_registers_no_command_and_its_sibling_still_loads()
+	public async Task Constructor_with_the_context_wins_over_the_one_without_parameters()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Types("""
-			public class Failing : DotNetPlugin, IStartup, IShutdown
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Both", "IComicInfoHtml", """
+			private readonly string used;
+			public Plugin() { used = "no parameters"; }
+			public Plugin(IPluginContext context) { used = "context"; }
+			public string Execute(ComicBook[] books) { return used; }
+			"""));
+
+		object used = scripts.Load().Command("Both", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks);
+
+		await Assert.That(used).IsEqualTo("context");
+	}
+
+	[Test]
+	public async Task Constructor_that_throws_fails_every_hook_with_its_exception_and_runs_only_once()
+	{
+		using var scripts = new ScriptsFolder();
+		string dll = scripts.Compile(@"Scripts\Mine", Source.Types("""
+			[Plugin("Failing")]
+			public class Plugin : IStartup, IShutdown
 			{
-				public override string Key { get; set; } = "Failing";
-				protected override void OnLoad() { throw new InvalidOperationException("no database"); }
+				public Plugin(IPluginContext context)
+				{
+					System.IO.File.AppendAllText(System.IO.Path.Combine(context.ScriptPath, "created.txt"), "x");
+					throw new FormatException("no database zq-constructor");
+				}
 				public void Execute() { }
 				public bool Execute(bool user_is_closing) { return true; }
 			}
-			public class Working : DotNetPlugin, IStartup { public override string Key { get; set; } = "Working"; public void Execute() { } }
+			[Plugin("Working")]
+			public class Working : IComicInfoHtml { public string Execute(ComicBook[] books) { return "works"; } }
 			"""));
-
 		var loaded = scripts.Load();
+		Command startup = loaded.Command("Failing", PluginEngine.ScriptTypeStartup);
+		Command shutdown = loaded.Command("Failing", PluginEngine.ScriptTypeShutdown);
 
-		await Assert.That(loaded.Engine.GetAllCommands().Select(c => c.Key)).IsEquivalentTo(new[] { "Working" });
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("OnLoad failed: no database");
+		var first = await Assert.That(() => startup.Invoke(null)).ThrowsExactly<FormatException>();
+		var otherHook = await Assert.That(() => shutdown.Invoke(new object[] { true })).ThrowsExactly<FormatException>();
+		var again = await Assert.That(() => startup.Invoke(null)).ThrowsExactly<FormatException>();
+
+		await Assert.That(first.Message).IsEqualTo("no database zq-constructor");
+		await Assert.That(first.StackTrace).Contains("Fixture.Plugin..ctor");
+		await Assert.That(otherHook).IsSameReferenceAs(first);
+		await Assert.That(again).IsSameReferenceAs(first);
+		await Assert.That(Created(dll)).IsEqualTo("x");
+		await Assert.That(PluginConsole.LinesMentioning("zq-constructor").Split('\n').Distinct()).IsEquivalentTo(new[] { "Failing: constructor failed: no database zq-constructor" });
+		await Assert.That(loaded.Command("Working", PluginEngine.ScriptTypeComicInfoHtml).Invoke(NoBooks)).IsEqualTo("works");
 	}
 
 	[Test]
@@ -93,7 +177,7 @@ public class LifecycleTests
 		{
 			bitmap.Save(png, System.Drawing.Imaging.ImageFormat.Png);
 		}
-		scripts.CompileTo(@"Scripts\Mine\WithIcon.dll", "WithIcon" + Guid.NewGuid().ToString("N"), Source.Plugin("Tool", "IBooks", "public Plugin() { Image = \"icon.png\"; } public void Execute(ComicBook[] books) { }"), embeddedResourceFile: png);
+		scripts.CompileTo(@"Scripts\Mine\WithIcon.dll", "WithIcon" + Guid.NewGuid().ToString("N"), Source.Plugin("Tool", "IBooks", "public void Execute(ComicBook[] books) { }", attribute: "Image = \"icon.png\""), embeddedResourceFile: png);
 
 		Command tool = scripts.Load().Command("Tool", PluginEngine.ScriptTypeBooks);
 
@@ -114,7 +198,7 @@ public class LifecycleTests
 		{
 			bitmap.Save(scripts.PathTo(@"Scripts\Mine\icon.png"), System.Drawing.Imaging.ImageFormat.Png);
 		}
-		scripts.CompileTo(@"Scripts\Mine\WithIcon.dll", "WithIcon" + Guid.NewGuid().ToString("N"), Source.Plugin("Tool", "IBooks", "public Plugin() { Image = \"icon.png\"; } public void Execute(ComicBook[] books) { }"), embeddedResourceFile: embedded);
+		scripts.CompileTo(@"Scripts\Mine\WithIcon.dll", "WithIcon" + Guid.NewGuid().ToString("N"), Source.Plugin("Tool", "IBooks", "public void Execute(ComicBook[] books) { }", attribute: "Image = \"icon.png\""), embeddedResourceFile: embedded);
 
 		Command tool = scripts.Load().Command("Tool", PluginEngine.ScriptTypeBooks);
 
@@ -125,7 +209,7 @@ public class LifecycleTests
 	public async Task Command_with_an_icon_that_exists_nowhere_still_loads_without_an_image()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("Tool", "IBooks", "public Plugin() { Image = \"icon.png\"; } public void Execute(ComicBook[] books) { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Tool", "IBooks", "public void Execute(ComicBook[] books) { }", attribute: "Image = \"icon.png\""));
 
 		Command tool = scripts.Load().Command("Tool", PluginEngine.ScriptTypeBooks);
 

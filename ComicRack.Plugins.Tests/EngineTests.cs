@@ -7,7 +7,7 @@ namespace ComicRack.Plugins.Tests;
 
 public class EngineTests
 {
-	private const string RecordLoad = "protected override void OnLoad() { System.IO.File.WriteAllText(System.IO.Path.Combine(ScriptPath, \"loaded.txt\"), Key); }";
+	private const string RecordCreation = "public Plugin(IPluginContext context) { System.IO.File.WriteAllText(System.IO.Path.Combine(context.ScriptPath, \"created.txt\"), \"x\"); }";
 
 	private static string PythonScript(string key, string hook, string function)
 	{
@@ -27,18 +27,20 @@ public class EngineTests
 	}
 
 	[Test]
-	public async Task Second_dotnet_plugin_with_a_key_that_is_taken_is_skipped_and_never_loaded()
+	public async Task Second_dotnet_plugin_with_a_key_that_is_taken_is_skipped_and_never_created()
 	{
 		using var scripts = new ScriptsFolder();
-		string first = scripts.Compile(@"Scripts\A", Source.Plugin("Same", "IStartup, IShutdown", RecordLoad + " public void Execute() { } public bool Execute(bool user_is_closing) { return true; }"));
-		string second = scripts.Compile(@"Scripts\B", Source.Plugin("Same", "IBookOpened, IConfig", RecordLoad + " public void Execute(ComicBook book) { } public void Execute() { }"));
+		string first = scripts.Compile(@"Scripts\A", Source.Plugin("Same", "IStartup, IShutdown", RecordCreation + " public void Execute() { } public bool Execute(bool user_is_closing) { return true; }"));
+		string second = scripts.Compile(@"Scripts\B", Source.Plugin("Same", "IBookOpened, IConfig", RecordCreation + " public void Execute(ComicBook book) { } public void Execute() { }"));
 
 		var loaded = scripts.Load();
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeStartup, new object[0]);
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeBookOpened, new object[] { new cYo.Projects.ComicRack.Engine.ComicBook() });
 
 		await Assert.That(loaded.Hooks("Same")).IsEquivalentTo(new[] { PluginEngine.ScriptTypeStartup, PluginEngine.ScriptTypeShutdown });
 		await Assert.That(loaded.Command("Same", PluginEngine.ScriptTypeStartup).Configure).IsNull();
-		await Assert.That(File.Exists(Path.Combine(Path.GetDirectoryName(first), "loaded.txt"))).IsTrue();
-		await Assert.That(File.Exists(Path.Combine(Path.GetDirectoryName(second), "loaded.txt"))).IsFalse();
+		await Assert.That(File.Exists(Path.Combine(Path.GetDirectoryName(first), "created.txt"))).IsTrue();
+		await Assert.That(File.Exists(Path.Combine(Path.GetDirectoryName(second), "created.txt"))).IsFalse();
 		await Assert.That(PluginConsole.LinesMentioning("'Same.BookOpened'")).Contains("already used by another plugin");
 	}
 
@@ -71,14 +73,15 @@ public class EngineTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Types("""
-			public class WithConfig : DotNetPlugin, IStartup, IShutdown, IConfig
+			[Plugin("WithConfig")]
+			public class WithConfig : IStartup, IShutdown, IConfig
 			{
-				public override string Key { get; set; } = "WithConfig";
 				void IStartup.Execute() { }
 				bool IShutdown.Execute(bool user_is_closing) { return true; }
 				void IConfig.Execute() { }
 			}
-			public class Plain : DotNetPlugin, IStartup { public override string Key { get; set; } = "Plain"; public void Execute() { } }
+			[Plugin("Plain")]
+			public class Plain : IStartup { public void Execute() { } }
 			"""));
 		scripts.Write(@"Scripts\Mine\z.py", PythonScript("Plain", PluginEngine.ScriptTypeConfig, "configure"));
 
@@ -106,13 +109,14 @@ public class EngineTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Types("""
-			public class Multi : DotNetPlugin, IStartup, IShutdown
+			[Plugin("Multi")]
+			public class Multi : IStartup, IShutdown
 			{
-				public override string Key { get; set; } = "Multi";
 				public void Execute() { }
 				public bool Execute(bool user_is_closing) { return true; }
 			}
-			public class Solo : DotNetPlugin, IStartup { public override string Key { get; set; } = "Solo"; public void Execute() { } }
+			[Plugin("Solo")]
+			public class Solo : IStartup { public void Execute() { } }
 			"""));
 		var loaded = scripts.Load();
 
@@ -143,23 +147,39 @@ public class EngineTests
 	}
 
 	[Test]
-	public async Task Dispose_of_the_engine_disposes_each_disposable_plugin_once_even_when_another_one_throws()
+	public async Task Dispose_of_the_engine_disposes_each_created_disposable_plugin_once_even_when_another_one_throws()
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\A", Source.Plugin("Thrower", "IStartup, IDisposable", "public void Execute() { } public void Dispose() { throw new InvalidOperationException(\"cannot close zq-dispose\"); }"));
-		string good = scripts.Compile(@"Scripts\B", Source.Plugin("Good", "IStartup, IShutdown, IConfig, IDisposable", """
+		string good = scripts.Compile(@"Scripts\B", Source.Plugin("Good", "IStartup, IShutdown, IConfig, IDisposable", Source.Context + """
 			void IStartup.Execute() { }
 			bool IShutdown.Execute(bool user_is_closing) { return true; }
 			void IConfig.Execute() { }
-			public void Dispose() { System.IO.File.AppendAllText(System.IO.Path.Combine(ScriptPath, "disposed.txt"), "x"); }
+			public void Dispose() { System.IO.File.AppendAllText(System.IO.Path.Combine(context.ScriptPath, "disposed.txt"), "x"); }
 			"""));
 		scripts.Compile(@"Scripts\C", Source.Plugin("NotDisposable", "IStartup", "public void Execute() { }"));
 		var loaded = scripts.Load();
+		loaded.Engine.Invoke(PluginEngine.ScriptTypeStartup, new object[0]);
 
 		loaded.Engine.Dispose();
 		loaded.Engine.Dispose();
 
 		await Assert.That(File.ReadAllText(Path.Combine(Path.GetDirectoryName(good), "disposed.txt"))).IsEqualTo("x");
 		await Assert.That(PluginConsole.LinesMentioning("zq-dispose")).IsEqualTo("Failed to dispose .NET plugin 'Thrower': cannot close zq-dispose");
+	}
+
+	[Test]
+	public async Task Dispose_of_the_engine_neither_creates_nor_disposes_a_plugin_that_no_hook_has_used()
+	{
+		using var scripts = new ScriptsFolder();
+		string unused = scripts.Compile(@"Scripts\Mine", Source.Plugin("Unused", "IStartup, IDisposable", Source.Context + """
+			public void Execute() { }
+			public void Dispose() { System.IO.File.WriteAllText(System.IO.Path.Combine(context.ScriptPath, "disposed.txt"), "x"); }
+			"""));
+		var loaded = scripts.Load();
+
+		loaded.Engine.Dispose();
+
+		await Assert.That(Directory.GetFiles(Path.GetDirectoryName(unused)).Select(Path.GetFileName)).IsEquivalentTo(new[] { Path.GetFileName(unused) });
 	}
 }

@@ -52,7 +52,8 @@ public class LoadingSafetyTests
 		string missing = scripts.Compile("Elsewhere", "namespace Missing { public class Base { } }");
 		scripts.Compile(@"Scripts\Mine", Source.Types("""
 			public class Broken : Missing.Base { }
-			public class Plugin : DotNetPlugin, IStartup { public override string Key { get; set; } = "Survivor"; public void Execute() { } }
+			[Plugin("Survivor")]
+			public class Plugin : IStartup { public void Execute() { } }
 			"""), missing);
 
 		var loaded = scripts.Load();
@@ -67,20 +68,34 @@ public class LoadingSafetyTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Types("""
-			public abstract class Shared : DotNetPlugin, IStartup { public void Execute() { } }
-			public class Generic<T> : Shared { public override string Key { get; set; } = "Generic"; }
-			public class NoPublicConstructor : Shared { private NoPublicConstructor() { } public override string Key { get; set; } = "NoConstructor"; }
-			public class ThrowingConstructor : Shared { public ThrowingConstructor() { throw new InvalidOperationException("constructor went wrong"); } public override string Key { get; set; } = "Throwing"; }
-			public class NoKey : Shared { public override string Key { get; set; } }
-			public class Survivor : Shared { public override string Key { get; set; } = "Survivor"; }
+			public abstract class Shared : IStartup { public void Execute() { } }
+			public class Generic<T> : Shared { }
+			[Plugin("NoConstructor")] public class NoPublicConstructor : Shared { private NoPublicConstructor() { } }
+			[Plugin("WrongConstructor")] public class WrongConstructor : Shared { public WrongConstructor(string name) { } }
+			[Plugin("")] public class NoKey : Shared { }
+			[Plugin("WithAttribute")] public class WithAttribute : Shared { }
+			public class NoAttribute : WithAttribute { }
+			[Plugin("NoHook")] public class NoHook { }
+			[Plugin("Abstract")] public abstract class AbstractPlugin : Shared { }
+			[Plugin("OpenGeneric")] public class GenericPlugin<T> : Shared { }
+			[Plugin("Internal")] internal class InternalPlugin : Shared { }
+			[Plugin("Survivor")] public class Survivor : Shared { }
 			"""));
 
 		var loaded = scripts.Load();
 
-		await Assert.That(Keys(loaded)).IsEquivalentTo(new[] { "Survivor" });
-		string console = loaded.ConsoleLinesAboutThisFixture;
-		await Assert.That(console).Contains("Fixture.NoPublicConstructor").And.Contains("Fixture.ThrowingConstructor").And.Contains("constructor went wrong").And.Contains("Fixture.NoKey");
-		await Assert.That(console).DoesNotContain("Fixture.Shared").And.DoesNotContain("Fixture.Generic");
+		await Assert.That(Keys(loaded)).IsEquivalentTo(new[] { "WithAttribute", "Survivor" });
+		string[] console = loaded.ConsoleLinesAboutThisFixture.Split('\n');
+		Func<string, string> lineAbout = type => console.SingleOrDefault(line => line.Contains("'Fixture." + type + "'")) ?? "";
+		await Assert.That(lineAbout("NoPublicConstructor")).Contains("needs a public constructor");
+		await Assert.That(lineAbout("WrongConstructor")).Contains("needs a public constructor");
+		await Assert.That(lineAbout("NoKey")).Contains("the Key is empty");
+		await Assert.That(lineAbout("NoAttribute")).Contains("has no [Plugin] attribute");
+		await Assert.That(lineAbout("NoHook")).Contains("implements no hook interface");
+		await Assert.That(lineAbout("AbstractPlugin")).Contains("must be public, not abstract and not generic");
+		await Assert.That(lineAbout("GenericPlugin`1")).Contains("must be public, not abstract and not generic");
+		await Assert.That(lineAbout("InternalPlugin")).Contains("must be public, not abstract and not generic");
+		await Assert.That(string.Join("\n", console)).DoesNotContain("Fixture.Shared").And.DoesNotContain("Fixture.Generic`1").And.DoesNotContain("Fixture.Survivor").And.DoesNotContain("Fixture.WithAttribute");
 	}
 
 	[Test]

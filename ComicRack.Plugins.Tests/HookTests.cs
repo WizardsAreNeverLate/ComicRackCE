@@ -36,7 +36,6 @@ public class HookTests
 		using var scripts = new ScriptsFolder();
 		scripts.Compile(@"Scripts\Mine", Source.Plugin("All", string.Join(", ", hookInterfaces.Select(t => t.Name)), """
 			private readonly List<string> calls = new List<string>();
-			public int PCount { get; set; }
 			IEnumerable<ComicBook> ICreateBookList.Execute(ComicBook[] books, string a, string b) { calls.Add("CreateBookList " + books.Length + " " + a + " " + b); return books; }
 			void IParseComicPath.Execute(string path, ComicNameInfo proposed) { calls.Add("ParseComicPath " + path); proposed.Series = "Parsed"; }
 			void ILibrary.Execute(ComicBook[] books) { calls.Add("Library " + books.Length); }
@@ -123,10 +122,8 @@ public class HookTests
 
 	private static string ExplicitImplementation(Type hook)
 	{
-		var members = hook.GetProperties().Select(p => $"{CSharpName(p.PropertyType)} {hook.Name}.{p.Name} {{ get; set; }}")
-			.Concat(hook.GetMethods().Where(m => !m.IsSpecialName).Select(m =>
-				$"{CSharpName(m.ReturnType)} {hook.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => CSharpName(p.ParameterType) + " " + p.Name))}) {{ {(m.ReturnType == typeof(void) ? "" : "return default(" + CSharpName(m.ReturnType) + ");")} }}"));
-		return string.Join("\n", members);
+		return string.Join("\n", hook.GetMethods().Select(m =>
+			$"{CSharpName(m.ReturnType)} {hook.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => CSharpName(p.ParameterType) + " " + p.Name))}) {{ {(m.ReturnType == typeof(void) ? "" : "return default(" + CSharpName(m.ReturnType) + ");")} }}"));
 	}
 
 	private static string CSharpName(Type type)

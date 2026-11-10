@@ -9,27 +9,26 @@ namespace SamplePlugin
 {
 	// A compiled plugin. Build the project and copy SamplePlugin.dll into a folder below the Scripts folder of ComicRack.
 	//
-	// The class gets one command for each hook interface it implements. All commands share this one instance.
-	public class SamplePlugin : DotNetPlugin, IBooks, ILibrary, IComicInfoHtml, IConfig, IDisposable
+	// The attribute describes the plugin. ComicRack reads it when it scans the script folders and does not create the class then.
+	// The class gets one command for each hook interface it implements. All commands share one instance.
+	[Plugin("SamplePlugin", Name = "[Code Sample] Count Books (C#)", Description = "Shows how many books a command gets", Image = "SamplePlugin.png")]
+	public sealed class SamplePlugin : IBooks, ILibrary, IComicInfoHtml, IConfig, IStartup, IDisposable
 	{
-		private string loadedAt;
+		private readonly IPluginContext context;
 
-		public override string Key { get; set; } = "SamplePlugin";
+		private readonly string createdAt;
 
-		// ComicRack creates the class when it scans the script folders, also when the plugin is disabled.
-		// Only describe the plugin here. ComicRack and ScriptPath are not set yet.
-		public SamplePlugin()
+		// Runs once, when the first hook of the plugin runs. It does not run when the plugin is disabled.
+		public SamplePlugin(IPluginContext context)
 		{
-			Name = "[Code Sample] Count Books (C#)";
-			Description = "Shows how many books a command gets";
-			Image = "SamplePlugin.png";
+			this.context = context;
+			createdAt = DateTime.Now.ToShortTimeString();
+			Console.WriteLine("SamplePlugin loaded from " + context.ScriptPath);
 		}
 
-		// Runs once, before the first hook. ComicRack and ScriptPath are set from here on.
-		protected override void OnLoad()
+		void IStartup.Execute()
 		{
-			loadedAt = DateTime.Now.ToShortTimeString();
-			Console.WriteLine("SamplePlugin loaded from " + ScriptPath);
+			Console.WriteLine("SamplePlugin started");
 		}
 
 		// IBooks and ILibrary have the same Execute signature. A public Execute(ComicBook[]) method would serve both hooks.
@@ -47,16 +46,16 @@ namespace SamplePlugin
 		string IComicInfoHtml.Execute(ComicBook[] books)
 		{
 			string items = string.Concat(books.Select(book => "<li>" + WebUtility.HtmlEncode(book.Caption) + "</li>"));
-			return "<html><body><p>Sample plugin, loaded at " + loadedAt + "</p><ul>" + items + "</ul></body></html>";
+			return "<html><body><p>Sample plugin, created at " + createdAt + "</p><ul>" + items + "</ul></body></html>";
 		}
 
 		// The Configure button of the plugin in the Preferences, and the arrow of its toolbar button.
 		void IConfig.Execute()
 		{
-			Show("The plugin is in " + ScriptPath);
+			Show("The plugin is in " + context.ScriptPath);
 		}
 
-		// Runs when ComicRack closes.
+		// Runs when ComicRack closes, if a hook of the plugin has run.
 		public void Dispose()
 		{
 			Console.WriteLine("SamplePlugin disposed");
@@ -64,7 +63,7 @@ namespace SamplePlugin
 
 		private void Show(string text)
 		{
-			MessageBox.Show(ComicRack.MainWindow, text, Name);
+			MessageBox.Show(context.ComicRack.MainWindow, text, "Sample plugin");
 		}
 	}
 }

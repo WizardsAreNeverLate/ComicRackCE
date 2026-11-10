@@ -25,7 +25,7 @@ public class SourcePluginTests
 	{
 		using var scripts = new ScriptsFolder();
 		string marker = scripts.Write(@"Scripts\Src\Mine.csplugin", "");
-		scripts.Write(@"Scripts\Src\Plugin.cs", Returning("FromSource", "ScriptPath + \"|\" + ComicRack.CommandPath"));
+		scripts.Write(@"Scripts\Src\Plugin.cs", Source.Plugin("FromSource", "IComicInfoHtml", Source.Context + "public string Execute(ComicBook[] books) { return context.ScriptPath + \"|\" + context.ComicRack.CommandPath; }"));
 		scripts.Write(@"Scripts\Src\Helpers\Second.cs", Source.Plugin("SecondClass", "IStartup", "public void Execute() { }", className: "Second"));
 		string folder = Path.GetDirectoryName(marker);
 
@@ -131,7 +131,7 @@ public class SourcePluginTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Write(@"Scripts\Broken\Broken.csplugin", "");
-		string broken = scripts.Write(@"Scripts\Broken\Plugin.cs", "using cYo.Projects.ComicRack.Plugins;\npublic class Plugin : DotNetPlugin, IStartup\n{\n\tpublic override string Key { get; set; } = \"Broken\";\n\tpublic void Execute() { int x = \"text\"; }\n}\n");
+		string broken = scripts.Write(@"Scripts\Broken\Plugin.cs", "using cYo.Projects.ComicRack.Plugins;\n[Plugin(\"Broken\")]\npublic class Plugin : IStartup\n{\n\tpublic void Execute() { int x = \"text\"; }\n}\n");
 		scripts.Write(@"Scripts\Good\Good.csplugin", "");
 		scripts.Write(@"Scripts\Good\Plugin.cs", Returning("GoodSource", "\"ok\""));
 		scripts.Compile(@"Scripts\Compiled", Returning("GoodCompiled", "\"ok\""));
@@ -219,7 +219,7 @@ public class SourcePluginTests
 	{
 		using var scripts = new ScriptsFolder();
 		scripts.Write(@"Scripts\Src\Mine.csplugin", "");
-		string source = scripts.Write(@"Scripts\Src\Plugin.cs", "using System;\nusing cYo.Projects.ComicRack.Plugins;\npublic class Plugin : DotNetPlugin, IStartup\n{\n\tpublic override string Key { get; set; } = \"Traced\";\n\tpublic void Execute()\n\t{\n\t\tthrow new InvalidOperationException(\"traced\");\n\t}\n}\n");
+		string source = scripts.Write(@"Scripts\Src\Plugin.cs", "using System;\nusing cYo.Projects.ComicRack.Plugins;\n[Plugin(\"Traced\")]\npublic class Plugin : IStartup\n{\n\tpublic void Execute()\n\t{\n\t\tthrow new InvalidOperationException(\"traced\");\n\t}\n}\n");
 		Command command = scripts.Load().Command("Traced", PluginEngine.ScriptTypeStartup);
 
 		var thrown = await Assert.That(() => command.Invoke(null)).ThrowsExactly<InvalidOperationException>();

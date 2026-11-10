@@ -24,14 +24,12 @@ public class DiscoveryTests
 	}
 
 	[Test]
-	public async Task Command_metadata_comes_from_the_plugin_properties()
+	public async Task Command_metadata_comes_from_the_plugin_attribute()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("Described", "ICreateBookList", """
-			public Plugin() { Name = "Shown name"; Description = "What it does"; Image = "Icon.png"; Enabled = false; PCount = 2; }
-			public int PCount { get; set; }
-			public IEnumerable<ComicBook> Execute(ComicBook[] books, string a, string b) { return books; }
-			"""));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Described", "ICreateBookList",
+			"public IEnumerable<ComicBook> Execute(ComicBook[] books, string a, string b) { return books; }",
+			attribute: "Name = \"Shown name\", Description = \"What it does\", Image = \"Icon.png\", Enabled = false, PCount = 2"));
 
 		Command command = scripts.Load().Command("Described", PluginEngine.ScriptTypeCreateBookList);
 

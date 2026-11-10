@@ -206,7 +206,7 @@ namespace cYo.Projects.ComicRack.Plugins
 				{
 					try
 					{
-						// The Key of a .NET command is known before Initialize. Checking it first keeps OnLoad from running in a plugin that is skipped.
+						// The Key of a .NET command is known before Initialize, so a plugin that is skipped is reported and never initialized.
 						if (cmd is DotNetCommand && IsKeyTakenByAnotherPlugin(cmd))
 						{
 							Command.LogDefault("Skipped .NET plugin command '{0}.{1}': the Key is already used by another plugin", cmd.Key, cmd.Hook);
@@ -276,16 +276,20 @@ namespace cYo.Projects.ComicRack.Plugins
 				return;
 			}
 			disposed = true;
-			IEnumerable<DotNetPlugin> plugins = commands.SelectMany((Command c) => new[] { c, c.Configure }).OfType<DotNetCommand>().Select((DotNetCommand c) => c.Plugin).Distinct();
-			foreach (DotNetPlugin plugin in plugins)
+			IEnumerable<DotNetPluginClass> plugins = commands.SelectMany((Command c) => new[] { c, c.Configure }).OfType<DotNetCommand>().Select((DotNetCommand c) => c.Plugin).Distinct();
+			foreach (DotNetPluginClass plugin in plugins)
 			{
 				try
 				{
-					(plugin as IDisposable)?.Dispose();
+					// A plugin that no hook has used was never created, and Dispose must not create it.
+					if (plugin.TryGetCreatedInstance(out object instance))
+					{
+						(instance as IDisposable)?.Dispose();
+					}
 				}
 				catch (Exception e)
 				{
-					Command.LogDefault("Failed to dispose .NET plugin '{0}': {1}", plugin.Key, e.Message);
+					Command.LogDefault("Failed to dispose .NET plugin '{0}': {1}", plugin.Attribute.Key, e.Message);
 				}
 			}
 		}

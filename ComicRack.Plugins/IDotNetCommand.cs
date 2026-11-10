@@ -5,7 +5,7 @@ using System.Windows.Forms;
 namespace cYo.Projects.ComicRack.Plugins
 {
 	/// <summary>
-	/// Base of the hook interfaces. A <see cref="DotNetPlugin"/> class gets one command for each hook interface it implements.
+	/// Base of the hook interfaces. A class with a <see cref="PluginAttribute"/> gets one command for each hook interface it implements.
 	/// </summary>
 	/// <remarks>
 	/// Several hooks have the same Execute signature (for example <see cref="ILibrary"/>, <see cref="IEditor"/>, <see cref="IBooks"/> and <see cref="INewBooks"/>).
@@ -18,12 +18,9 @@ namespace cYo.Projects.ComicRack.Plugins
 	/// </remarks>
 	public interface IDotNetCommand;
 
-	/// <summary>Supplies the books of a smart list rule.</summary>
+	/// <summary>Supplies the books of a smart list rule. <see cref="PluginAttribute.PCount"/> sets the number of parameters the smart list editor asks for.</summary>
 	public interface ICreateBookList : IDotNetCommand
 	{
-		/// <summary>The number of parameters (0 to 2) the smart list editor asks for.</summary>
-		public int PCount { get; set; }
-
 		/// <param name="books">The books to select from.</param>
 		/// <param name="a">The first parameter from the smart list editor.</param>
 		/// <param name="b">The second parameter from the smart list editor.</param>

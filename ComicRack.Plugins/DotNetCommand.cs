@@ -54,30 +54,31 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private readonly MethodInfo execute;
 
-		private readonly string pluginFile;
-
-		private DotNetCommand(DotNetPlugin plugin, IDotNetHook hook, string pluginFile)
+		private DotNetCommand(DotNetPluginClass plugin, IDotNetHook hook)
 		{
 			Plugin = plugin;
-			this.pluginFile = pluginFile;
 			execute = hook.HookType.GetMethod(Method);
-			Key = plugin.Key;
-			Name = plugin.Name;
-			Description = plugin.Description;
-			Image = plugin.Image;
-			Enabled = plugin.Enabled;
-			PCount = hook.HookType.GetProperty("PCount")?.GetValue(plugin) as int? ?? 0;
+			Key = plugin.Attribute.Key;
+			Name = plugin.Attribute.Name;
+			Description = plugin.Attribute.Description;
+			Image = plugin.Attribute.Image;
+			Enabled = plugin.Attribute.Enabled;
+			PCount = plugin.Attribute.PCount;
 			Hook = hook.Hook;
 		}
 
-		public DotNetPlugin Plugin { get; }
+		public DotNetPluginClass Plugin { get; }
 
-		private string ConfigFileName => pluginFile + "-" + Key + ".config";
+		private string ConfigFileName => Plugin.File + "-" + Key + ".config";
 
-		// pluginFile is the file that stands for the plugin on disk: the DLL of a compiled plugin, the .csplugin file of a source plugin.
-		public static IEnumerable<DotNetCommand> CreateAll(DotNetPlugin plugin, string pluginFile)
+		public static bool ImplementsHook(Type type)
 		{
-			return hookTypes.Values.Where(hook => hook.HookType.IsInstanceOfType(plugin)).Select(hook => new DotNetCommand(plugin, hook, pluginFile));
+			return hookTypes.Values.Any(hook => hook.HookType.IsAssignableFrom(type));
+		}
+
+		public static IEnumerable<DotNetCommand> CreateAll(DotNetPluginClass plugin)
+		{
+			return hookTypes.Values.Where(hook => hook.HookType.IsAssignableFrom(plugin.Type)).Select(hook => new DotNetCommand(plugin, hook));
 		}
 
 		protected override void Log(string text, params object[] o)
@@ -88,9 +89,10 @@ namespace cYo.Projects.ComicRack.Plugins
 		protected override object OnInvoke(object[] data)
 		{
 			Log($"Calling '{Key}.{Hook}'...");
+			object instance = Plugin.GetInstance();
 			try
 			{
-				return execute.Invoke(Plugin, data);
+				return execute.Invoke(instance, data);
 			}
 			catch (TargetInvocationException e) when (e.InnerException != null)
 			{
@@ -108,32 +110,24 @@ namespace cYo.Projects.ComicRack.Plugins
 		protected override void OnInitialize(IPluginEnvironment env, string path)
 		{
 			base.OnInitialize(env, path);
-			if (CommandImage == null && !string.IsNullOrEmpty(Plugin.Image))
+			if (CommandImage == null && !string.IsNullOrEmpty(Plugin.Attribute.Image))
 			{
 				CommandImage = LoadEmbeddedImage();
 			}
-			try
-			{
-				Plugin.Load(Environment, path);
-			}
-			catch (Exception e)
-			{
-				Log($"Skipped '{Key}.{Hook}' from '{pluginFile}': OnLoad failed: {e.Message}");
-				throw;
-			}
+			Plugin.SetContext(Environment, path);
 		}
 
 		// The base class loads the image from the plugin folder; this fills in a missing file from the plugin assembly, so a single DLL can carry its image.
 		private System.Drawing.Image LoadEmbeddedImage()
 		{
-			string file = Path.GetFileName(Plugin.Image);
+			string file = Path.GetFileName(Plugin.Attribute.Image);
 			var candidates = new List<string>();
 			if (Environment != null && Environment.Theme.CurrentTheme != Themes.Default)
 			{
 				candidates.Add(Environment.Theme.CurrentTheme + file);
 			}
 			candidates.Add(file);
-			Assembly assembly = Plugin.GetType().Assembly;
+			Assembly assembly = Plugin.Type.Assembly;
 			string[] resources = assembly.GetManifestResourceNames();
 			foreach (string candidate in candidates)
 			{

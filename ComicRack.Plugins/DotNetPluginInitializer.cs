@@ -11,7 +11,7 @@ namespace cYo.Projects.ComicRack.Plugins
 		// COR_E_NOTSUPPORTED: .NET Framework refuses LoadFrom of a file that carries the internet zone mark.
 		private const int BlockedByZoneHResult = unchecked((int)0x80131515);
 
-		private static readonly string pluginApiName = typeof(DotNetPlugin).Assembly.GetName().Name;
+		private static readonly string pluginApiName = typeof(PluginAttribute).Assembly.GetName().Name;
 
 		public override IEnumerable<Command> GetCommands(string file)
 		{

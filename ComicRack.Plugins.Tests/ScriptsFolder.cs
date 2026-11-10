@@ -219,8 +219,12 @@ internal static class Source
 
 	public static string Types(string types) => Usings + "namespace Fixture {\n" + types + "\n}";
 
-	public static string Plugin(string key, string hooks, string members, string className = "Plugin")
+	// Members of a fixture class named Plugin that keep the context of the constructor.
+	public const string Context = "private readonly IPluginContext context; public Plugin(IPluginContext context) { this.context = context; }\n";
+
+	// attribute holds more arguments of the [Plugin] attribute, such as "Enabled = false".
+	public static string Plugin(string key, string hooks, string members, string className = "Plugin", string attribute = null)
 	{
-		return Types($"public class {className} : DotNetPlugin, {hooks} {{\npublic override string Key {{ get; set; }} = \"{key}\";\n{members}\n}}");
+		return Types($"[Plugin(\"{key}\"{(attribute == null ? "" : ", " + attribute)})]\npublic class {className} : {hooks} {{\n{members}\n}}");
 	}
 }

@@ -1,6 +1,18 @@
 # .NET plugin samples
 
-A .NET plugin is a class that derives from `DotNetPlugin` and implements one or more hook interfaces, for example `IBooks` or `IComicInfoHtml`. ComicRack gives the class one command for each hook interface.
+A .NET plugin is a class that has the `[Plugin]` attribute and implements one or more hook interfaces, for example `IBooks` or `IComicInfoHtml`. ComicRack gives the class one command for each hook interface.
+
+```c#
+[Plugin("MyPlugin", Name = "My Plugin", Description = "Does something", Image = "MyPlugin.png")]
+public sealed class MyPlugin : IBooks
+{
+    private readonly IPluginContext context;
+
+    public MyPlugin(IPluginContext context) { this.context = context; }
+
+    void IBooks.Execute(ComicBook[] books) { ... }
+}
+```
 
 You can ship a plugin in two forms. Both use the same classes and interfaces.
 
@@ -23,10 +35,13 @@ To see the messages of plugins and compile errors, start ComicRack with the scri
 
 ## Write a plugin class
 
-- Set `Key`, `Name`, `Description` and `Image` in the constructor and do nothing else there. ComicRack creates the class when it scans the script folders, also when the plugin is disabled.
-- Do the initialization in `OnLoad`. The properties `ComicRack` (the host) and `ScriptPath` (the plugin folder) are null before `OnLoad`.
-- One instance of the class serves all its hooks.
-- If the class implements `IDisposable`, ComicRack calls `Dispose` when it closes.
+- Describe the plugin in the `[Plugin]` attribute. The `Key` is required. `Name`, `Description`, `Image`, `Enabled` and `PCount` are optional, and `Name` defaults to the `Key`. `PCount` is the number of parameters of an `ICreateBookList` hook.
+- The class must be public, not abstract and not generic. A derived class does not inherit the attribute.
+- Give the class a public constructor that takes an `IPluginContext`, or a public constructor without parameters. The context has the properties `ComicRack` (the host) and `ScriptPath` (the plugin folder).
+- ComicRack does not create the class when it scans the script folders. It creates one instance when a hook of the class runs for the first time, and that instance serves all hooks of the class. A plugin that is disabled is never created.
+- Do the initialization in the constructor. If the constructor throws, the hooks of the class fail with that exception and ComicRack does not call the constructor again.
+- If the class implements `IDisposable`, ComicRack calls `Dispose` when it closes, but only if it created the instance.
+- ComicRack skips a class that does not follow these rules and writes the reason to the script console. This includes a class that implements a hook interface but has no `[Plugin]` attribute.
 - Some hooks have the same `Execute` signature, for example `ILibrary`, `IEditor`, `IBooks` and `INewBooks`. To give each hook its own code, implement the interfaces explicitly: `void IBooks.Execute(ComicBook[] books) { ... }`.
 - The `Key` must be unique. ComicRack skips a plugin whose `Key` another plugin or script already uses.
 

@@ -121,7 +121,7 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private static readonly Assembly[] hostReferences =
 		{
-			typeof(DotNetPlugin).Assembly, typeof(ComicBook).Assembly, typeof(FileUtility).Assembly, typeof(Themes).Assembly
+			typeof(PluginAttribute).Assembly, typeof(ComicBook).Assembly, typeof(FileUtility).Assembly, typeof(Themes).Assembly
 		};
 
 		private readonly string cachePath;

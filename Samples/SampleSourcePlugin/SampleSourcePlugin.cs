@@ -9,19 +9,19 @@ namespace SampleSourcePlugin
 {
 	// A source plugin. Copy this folder into the Scripts folder of ComicRack; there is nothing to build.
 	// It uses SampleLibrary.dll from the lib folder, which SampleSourcePlugin.csplugin lists as a reference.
-	public class SampleSourcePlugin : DotNetPlugin, IComicInfoHtml, IStartup
+	[Plugin("SampleSourcePlugin", Name = "[Code Sample] Slugs (C# source)", Description = "Shows a URL-friendly name for the selected books")]
+	public sealed class SampleSourcePlugin : IComicInfoHtml, IStartup
 	{
-		public override string Key { get; set; } = "SampleSourcePlugin";
+		private readonly IPluginContext context;
 
-		public SampleSourcePlugin()
+		public SampleSourcePlugin(IPluginContext context)
 		{
-			Name = "[Code Sample] Slugs (C# source)";
-			Description = "Shows a URL-friendly name for the selected books";
+			this.context = context;
 		}
 
 		void IStartup.Execute()
 		{
-			Console.WriteLine("SampleSourcePlugin runs from " + ScriptPath);
+			Console.WriteLine("SampleSourcePlugin runs from " + context.ScriptPath);
 		}
 
 		string IComicInfoHtml.Execute(ComicBook[] books)
