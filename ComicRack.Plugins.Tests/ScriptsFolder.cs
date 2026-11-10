@@ -59,7 +59,7 @@ internal sealed class ScriptsFolder : IDisposable
 	}
 
 	// Only assemblies the source really uses end up as references of the DLL.
-	public string CompileTo(string dllUnderRoot, string assemblyName, string source, string embeddedResourceFile = null, string version = null, params string[] references)
+	public string CompileTo(string dllUnderRoot, string assemblyName, string source, string embeddedResourceFile = null, string version = null, string strongNameKeyFile = null, params string[] references)
 	{
 		string dll = PathTo(dllUnderRoot);
 		if (version != null)
@@ -70,7 +70,7 @@ internal sealed class ScriptsFolder : IDisposable
 			assemblyName,
 			new[] { CSharpSyntaxTree.ParseText(source) },
 			defaultReferences.Concat(references.Select(r => (MetadataReference)MetadataReference.CreateFromFile(r))),
-			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, cryptoKeyFile: strongNameKeyFile, strongNameProvider: new DesktopStrongNameProvider()));
 		var resources = embeddedResourceFile == null
 			? Enumerable.Empty<ResourceDescription>()
 			: new[] { new ResourceDescription(assemblyName + "." + Path.GetFileName(embeddedResourceFile), () => File.OpenRead(embeddedResourceFile), isPublic: true) };
@@ -91,6 +91,16 @@ internal sealed class ScriptsFolder : IDisposable
 		PluginEngine engine = new PluginEngine();
 		engine.Initialize(new StubEnvironment(), Scripts);
 		return new LoadedPlugins(engine, Root);
+	}
+
+	public string CreateStrongNameKey()
+	{
+		string file = PathTo("key.snk");
+		using (var rsa = new System.Security.Cryptography.RSACryptoServiceProvider(1024))
+		{
+			File.WriteAllBytes(file, rsa.ExportCspBlob(includePrivateParameters: true));
+		}
+		return file;
 	}
 
 	public static bool IsExecutionLoaded(string dll)
