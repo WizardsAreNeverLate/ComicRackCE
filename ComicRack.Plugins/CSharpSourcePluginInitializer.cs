@@ -112,6 +112,8 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private const int KeyLength = 16;
 
+		private const int FolderLength = 8;
+
 		private static readonly string[] defaultFrameworkReferences =
 		{
 			"mscorlib", "netstandard", "Microsoft.CSharp", "System", "System.Core", "System.Data", "System.Drawing", "System.Net.Http", "System.Windows.Forms", "System.Xml", "System.Xml.Linq"
@@ -169,8 +171,11 @@ namespace cYo.Projects.ComicRack.Plugins
 			// Loads the small compiler assembly only. Roslyn is loaded when the compiler runs.
 			Assembly compilerAssembly = Assembly.Load(CompilerAssemblyName);
 			List<Reference> references = GetReferences(plugin);
-			string assemblyName = plugin.Name + "-" + ComputeKey(plugin, references, compilerAssembly).Substring(0, KeyLength);
-			string assemblyFile = Path.Combine(cachePath, assemblyName + ".dll");
+			string key = ComputeKey(plugin, references, compilerAssembly).Substring(0, KeyLength);
+			string assemblyName = plugin.Name + "-" + key;
+			string folderHash = ComputeFolderHash(plugin);
+			string cacheName = plugin.Name + "-" + folderHash + "-" + key;
+			string assemblyFile = Path.Combine(cachePath, cacheName + ".dll");
 			if (File.Exists(assemblyFile))
 			{
 				Command.LogDefault("Source plugin '{0}' is unchanged, using '{1}'", plugin.MarkerFile, assemblyFile);
@@ -188,7 +193,7 @@ namespace cYo.Projects.ComicRack.Plugins
 					LanguageVersion = plugin.LanguageVersion,
 					SourceFiles = plugin.SourceFiles,
 					References = references.Select(reference => reference.File).ToList(),
-					OutputFile = Path.Combine(staging, assemblyName + ".dll")
+					OutputFile = Path.Combine(staging, cacheName + ".dll")
 				});
 				if (errors.Count > 0)
 				{
@@ -199,10 +204,10 @@ namespace cYo.Projects.ComicRack.Plugins
 					}
 					return null;
 				}
-				RemoveCachedVersions(plugin.Name);
+				RemoveCachedVersions(plugin.Name, folderHash);
 				// The DLL moves last: its presence is what marks the cache entry as complete.
-				MoveIntoCache(Path.Combine(staging, assemblyName + ".pdb"));
-				MoveIntoCache(Path.Combine(staging, assemblyName + ".dll"));
+				MoveIntoCache(Path.Combine(staging, cacheName + ".pdb"));
+				MoveIntoCache(Path.Combine(staging, cacheName + ".dll"));
 				return assemblyFile;
 			}
 			finally
@@ -224,9 +229,16 @@ namespace cYo.Projects.ComicRack.Plugins
 			}
 		}
 
-		private void RemoveCachedVersions(string name)
+		// Plugins of the same name in different folders must not evict each other from the cache.
+		private static string ComputeFolderHash(SourcePlugin plugin)
 		{
-			var cached = new Regex("^" + Regex.Escape(name) + "-[0-9a-f]{" + KeyLength + @"}\.(dll|pdb)$", RegexOptions.IgnoreCase);
+			string folder = Path.GetFullPath(plugin.Folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			return Hex(Hash(writer => writer.Write(folder.ToUpperInvariant()))).Substring(0, FolderLength);
+		}
+
+		private void RemoveCachedVersions(string name, string folderHash)
+		{
+			var cached = new Regex("^" + Regex.Escape(name) + "-" + folderHash + "-[0-9a-f]{" + KeyLength + @"}\.(dll|pdb)$", RegexOptions.IgnoreCase);
 			foreach (string file in Directory.EnumerateFiles(cachePath).Where(file => cached.IsMatch(Path.GetFileName(file))))
 			{
 				// A version that a running ComicRack has loaded stays until a later start.

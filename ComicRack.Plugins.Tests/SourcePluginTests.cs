@@ -70,6 +70,28 @@ public class SourcePluginTests
 	}
 
 	[Test]
+	public async Task Source_plugins_with_the_same_name_in_different_folders_keep_their_own_cache_entries()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Write(@"Scripts\One\Mine.csplugin", "");
+		scripts.Write(@"Scripts\One\Plugin.cs", Returning("First", "\"one\""));
+		scripts.Write(@"Scripts\Two\Mine.csplugin", "");
+		scripts.Write(@"Scripts\Two\Plugin.cs", Returning("Second", "\"two\""));
+		scripts.Load();
+		string[] cached = CachedAssemblies(scripts);
+
+		var loaded = scripts.Load();
+
+		await Assert.That(cached.Length).IsEqualTo(2);
+		await Assert.That(Run(loaded, "First")).IsEqualTo("one");
+		await Assert.That(Run(loaded, "Second")).IsEqualTo("two");
+		await Assert.That(CachedAssemblies(scripts)).IsEquivalentTo(cached);
+		string[] console = loaded.ConsoleLinesAboutThisFixture.Split('\n');
+		await Assert.That(console.Count(line => line.StartsWith("Compiling source plugin"))).IsEqualTo(2);
+		await Assert.That(console.Count(line => line.Contains("is unchanged"))).IsEqualTo(2);
+	}
+
+	[Test]
 	[Arguments("source")]
 	[Arguments("marker")]
 	[Arguments("reference")]
