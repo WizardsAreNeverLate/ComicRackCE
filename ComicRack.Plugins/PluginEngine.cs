@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,7 +10,7 @@ using cYo.Common.Text;
 
 namespace cYo.Projects.ComicRack.Plugins
 {
-	public class PluginEngine
+	public class PluginEngine : IDisposable
 	{
 		private readonly PluginInitializer[] initializers =
 		[
@@ -148,20 +149,31 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private readonly CommandCollection commands = new CommandCollection();
 
+		private bool disposed;
+
 		private CommandCollection Commands => commands;
 
 		public string CommandStates
 		{
 			get
 			{
-				return Commands.Select((Command cmd) => (cmd.Enabled ? "+" : "-") + cmd.Key).ToListString(",");
+				// The hook commands of one .NET plugin class share a Key, and the state belongs to the Key.
+				return Commands.GroupBy((Command cmd) => cmd.Key).Select((IGrouping<string, Command> g) => (g.First().Enabled ? "+" : "-") + g.Key).ToListString(",");
 			}
 			set
 			{
 				value.FromListString(',').SafeForEach(delegate(string s)
 				{
-					Commands[s.Substring(1)].Enabled = s[0] == '+';
+					SetEnabled(s.Substring(1), s[0] == '+');
 				});
+			}
+		}
+
+		public void SetEnabled(string key, bool enabled)
+		{
+			foreach (Command command in Commands.Where((Command cmd) => cmd.Key == key))
+			{
+				command.Enabled = enabled;
 			}
 		}
 
@@ -185,6 +197,12 @@ namespace cYo.Projects.ComicRack.Plugins
 				{
 					try
 					{
+						// The Key of a .NET command is known before Initialize. Checking it first keeps OnLoad from running in a plugin that is skipped.
+						if (cmd is DotNetCommand && IsKeyTakenByAnotherPlugin(cmd))
+						{
+							Command.LogDefault("Skipped .NET plugin command '{0}.{1}': the Key is already used by another plugin", cmd.Key, cmd.Hook);
+							continue;
+						}
 						if (!cmd.IsHook(hooks) || !cmd.Initialize(env, Path.GetDirectoryName(file)))
 						{
 							continue;
@@ -195,10 +213,10 @@ namespace cYo.Projects.ComicRack.Plugins
 						}
 						else
 						{
-							// Allow one command per key & hook for a plugin.
-							if (commands.Exists(c => c.Key == cmd.Key && c.Hook == cmd.Hook))
+							if (IsKeyTakenByAnotherPlugin(cmd))
+							{
 								continue;
-
+							}
 							if (cmd.Enabled)
 							{
 								int num = commands.Count((Command c) => c.Enabled);
@@ -212,11 +230,53 @@ namespace cYo.Projects.ComicRack.Plugins
 					{
 					}
 				}
-				// Attach the plugin's config command to every matching command.
 				foreach (Command cfg in list)
 				{
-					foreach (Command command in commands.Where(c => c.Key == cfg.Key))
-						command.Configure = cfg;
+					if (cfg is DotNetCommand)
+					{
+						foreach (Command command in commands.Where((Command c) => IsSamePlugin(c, cfg)))
+						{
+							command.Configure = cfg;
+						}
+						continue;
+					}
+					Command first = commands.FirstOrDefault((Command c) => c.Key == cfg.Key && !(c is DotNetCommand));
+					if (first != null)
+					{
+						first.Configure = cfg;
+					}
+				}
+			}
+		}
+
+		// A Key belongs to the first plugin that registers it. Only the hook commands of one .NET plugin class share their Key.
+		private bool IsKeyTakenByAnotherPlugin(Command cmd)
+		{
+			return commands.Exists((Command c) => c.Key == cmd.Key && !IsSamePlugin(c, cmd));
+		}
+
+		private static bool IsSamePlugin(Command a, Command b)
+		{
+			return a is DotNetCommand x && b is DotNetCommand y && x.Plugin == y.Plugin;
+		}
+
+		public void Dispose()
+		{
+			if (disposed)
+			{
+				return;
+			}
+			disposed = true;
+			IEnumerable<DotNetPlugin> plugins = commands.SelectMany((Command c) => new[] { c, c.Configure }).OfType<DotNetCommand>().Select((DotNetCommand c) => c.Plugin).Distinct();
+			foreach (DotNetPlugin plugin in plugins)
+			{
+				try
+				{
+					(plugin as IDisposable)?.Dispose();
+				}
+				catch (Exception e)
+				{
+					Command.LogDefault("Failed to dispose .NET plugin '{0}': {1}", plugin.Key, e.Message);
 				}
 			}
 		}
