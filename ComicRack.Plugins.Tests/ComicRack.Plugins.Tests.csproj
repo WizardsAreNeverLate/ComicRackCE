@@ -23,6 +23,14 @@
     <ProjectReference Include="..\Samples\SamplePlugin\SamplePlugin.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Samples\SampleLibrary\SampleLibrary.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- One test scans a script folder inside the built ComicRack folder, with ComicRack.exe.config. -->
+    <ProjectReference Include="..\ComicRack\ComicRack.csproj" ReferenceOutputAssembly="false" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ComicRackFolder</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)..\ComicRack\bin\$(Configuration)\net48</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
   <!-- The tests install the samples the way a user does: the built DLL of the compiled sample, the folder of the source sample. -->
   <Target Name="CopySamples" AfterTargets="Build">
     <ItemGroup>

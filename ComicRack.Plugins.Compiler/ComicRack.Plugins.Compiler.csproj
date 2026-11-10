@@ -10,8 +10,8 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The projects that reference this one get the Roslyn DLLs in their output, but cannot compile against Roslyn. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="compile" />
+    <!-- Roslyn has to stay visible to the application that references this project: MSBuild writes the binding redirects for the Roslyn dependencies into the .config of that application only then. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ComicRack.Plugins\ComicRack.Plugins.csproj" />

@@ -219,50 +219,10 @@ public class SourcePluginTests
 		IsolatedScan.Result secondStart = IsolatedScan.Run(withSource);
 
 		await Assert.That(noSourcePlugin.Keys).IsEquivalentTo(new[] { "Compiled" });
-		await Assert.That(noSourcePlugin.LoadsRoslyn).IsFalse();
+		await Assert.That(noSourcePlugin.LoadedRoslyn).IsFalse();
 		await Assert.That(firstStart.Keys).IsEquivalentTo(new[] { "FromSource" });
-		await Assert.That(firstStart.LoadsRoslyn).IsTrue();
+		await Assert.That(firstStart.LoadedRoslyn).IsTrue();
 		await Assert.That(secondStart.Keys).IsEquivalentTo(new[] { "FromSource" });
-		await Assert.That(secondStart.LoadsRoslyn).IsFalse();
-	}
-}
-
-// The test process itself loads Roslyn to compile fixtures, so the scan runs in an application domain of its own.
-internal static class IsolatedScan
-{
-	internal sealed class Result
-	{
-		public string[] Keys;
-
-		public bool LoadsRoslyn;
-	}
-
-	public static Result Run(ScriptsFolder scripts)
-	{
-		AppDomain domain = AppDomain.CreateDomain("isolated scan", null, AppDomain.CurrentDomain.SetupInformation);
-		try
-		{
-			domain.SetData("scripts", scripts.Scripts);
-			domain.SetData("cache", scripts.Cache);
-			domain.DoCallBack(Scan);
-			return new Result
-			{
-				Keys = (string[])domain.GetData("keys"),
-				LoadsRoslyn = ((string[])domain.GetData("assemblies")).Any(name => name.StartsWith("Microsoft.CodeAnalysis", StringComparison.OrdinalIgnoreCase))
-			};
-		}
-		finally
-		{
-			AppDomain.Unload(domain);
-		}
-	}
-
-	private static void Scan()
-	{
-		AppDomain domain = AppDomain.CurrentDomain;
-		PluginEngine engine = new PluginEngine((string)domain.GetData("cache"));
-		engine.Initialize(new StubEnvironment(), (string)domain.GetData("scripts"));
-		domain.SetData("keys", engine.GetAllCommands().Select(c => c.Key).ToArray());
-		domain.SetData("assemblies", domain.GetAssemblies().Select(a => a.GetName().Name).ToArray());
+		await Assert.That(secondStart.LoadedRoslyn).IsFalse();
 	}
 }

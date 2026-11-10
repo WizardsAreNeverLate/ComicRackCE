@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using cYo.Projects.ComicRack.Engine;
 using cYo.Projects.ComicRack.Plugins;
@@ -17,6 +19,23 @@ public class SampleTests
 		{
 			File.Copy(file, scripts.PathTo(Path.Combine("Scripts", sample, file.Substring(source.Length + 1))));
 		}
+	}
+
+	// The other tests run with the assemblies and the binding redirects of the test project.
+	// This one runs in the folder that ships, so a missing DLL or binding redirect of ComicRack.exe fails here.
+	[Test]
+	public async Task Both_samples_load_and_run_in_the_built_ComicRack_folder_with_the_config_of_ComicRack_exe()
+	{
+		string comicRackFolder = typeof(SampleTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == "ComicRackFolder").Value;
+		using var scripts = new ScriptsFolder();
+		Install(scripts, "SamplePlugin");
+		Install(scripts, "SampleSourcePlugin");
+
+		IsolatedScan.Result result = IsolatedScan.Run(scripts, comicRackFolder, Path.Combine(comicRackFolder, "ComicRack.exe.config"), comicInfoHtmlOf: "SampleSourcePlugin");
+
+		await Assert.That(result.Keys).IsEquivalentTo(new[] { "SamplePlugin", "SampleSourcePlugin" });
+		await Assert.That(result.Html).Contains("<li>the-walking-dead");
+		await Assert.That(result.Console).Contains("Compiling source plugin").And.Contains(@"SampleSourcePlugin\lib\SampleLibrary.dll'").And.DoesNotContain("Failed");
 	}
 
 	[Test]
