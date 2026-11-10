@@ -96,6 +96,31 @@ public class HookTests
 		await Assert.That(((Control)quickControl).Text).IsEqualTo("quick");
 	}
 
+	[Test]
+	public async Task A_hook_matches_whole_names_only()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("OnlyNew", "INewBooks", "void INewBooks.Execute(ComicBook[] books) { }"));
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Engine.GetCommands(PluginEngine.ScriptTypeNewBooks).Select(c => c.Key)).Contains("OnlyNew");
+		await Assert.That(loaded.Engine.GetCommands(PluginEngine.ScriptTypeBooks).Select(c => c.Key)).DoesNotContain("OnlyNew");
+	}
+
+	[Test]
+	public async Task A_comma_separated_hook_list_matches_each_name_despite_spaces()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Write(@"Scripts\Mine\a.py", "#@Name run\n#@Key Multi\n#@Hook Books,  Editor\ndef run(books):\n\tpass\n");
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Engine.GetCommands(PluginEngine.ScriptTypeBooks).Select(c => c.Key)).Contains("Multi");
+		await Assert.That(loaded.Engine.GetCommands(PluginEngine.ScriptTypeEditor).Select(c => c.Key)).Contains("Multi");
+		await Assert.That(loaded.Engine.GetCommands(PluginEngine.ScriptTypeLibrary).Select(c => c.Key)).DoesNotContain("Multi");
+	}
+
 	private static string ExplicitImplementation(Type hook)
 	{
 		var members = hook.GetProperties().Select(p => $"{CSharpName(p.PropertyType)} {hook.Name}.{p.Name} {{ get; set; }}")
