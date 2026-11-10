@@ -93,6 +93,11 @@ internal sealed class ScriptsFolder : IDisposable
 		return new LoadedPlugins(engine, Root);
 	}
 
+	public static bool IsExecutionLoaded(string dll)
+	{
+		return AppDomain.CurrentDomain.GetAssemblies().Any(a => !a.IsDynamic && string.Equals(a.Location, dll, StringComparison.OrdinalIgnoreCase));
+	}
+
 	public void Dispose()
 	{
 		try
