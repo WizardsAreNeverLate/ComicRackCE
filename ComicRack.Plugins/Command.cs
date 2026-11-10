@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using System.Xml.Serialization;
 using cYo.Common.Drawing;
@@ -16,6 +17,18 @@ namespace cYo.Projects.ComicRack.Plugins
 		private bool enabled = true;
 
 		private Keys shortCutKeys;
+
+		public static Stream Output
+		{
+			get;
+			set;
+		}
+
+		public static bool EnableLog
+		{
+			get;
+			set;
+		}
 
 		[XmlAttribute]
 		[DefaultValue(null)]
@@ -191,6 +204,32 @@ namespace cYo.Projects.ComicRack.Plugins
 				return Path.Combine(basePath, Path.GetFileName(file));
 			}
 			return file;
+		}
+
+		public static void LogDefault(string text, params object[] o)
+		{
+			if (Output != null && EnableLog)
+			{
+				using (StreamWriter streamWriter = new StreamWriter(Output))
+				{
+					// Text without arguments is written as it is, so a message with braces cannot fail the format.
+					if (o == null || o.Length == 0)
+					{
+						streamWriter.WriteLine(text);
+					}
+					else
+					{
+						streamWriter.WriteLine(text, o);
+					}
+				}
+			}
+		}
+
+		// Console.Out of the process does not reach the script console by itself; the host installs this writer when it shows the console.
+		public static TextWriter CreateConsoleWriter()
+		{
+			Stream output = Output;
+			return output == null ? TextWriter.Null : TextWriter.Synchronized(new StreamWriter(output, Encoding.Default) { AutoFlush = true });
 		}
 
 		protected virtual void Log(string text, params object[] o)

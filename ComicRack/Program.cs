@@ -917,8 +917,9 @@ namespace cYo.Projects.ComicRack.Viewer
 			if (ExtendedSettings.ShowScriptConsole)
 			{
 				ScriptConsole = new ScriptOutputForm();
-				TextBoxStream logOutput = (TextBoxStream)(PythonCommand.Output = new TextBoxStream(ScriptConsole.Log));
-				PythonCommand.EnableLog = true;
+				TextBoxStream logOutput = (TextBoxStream)(Command.Output = new TextBoxStream(ScriptConsole.Log));
+				Command.EnableLog = true;
+				Console.SetOut(Command.CreateConsoleWriter());
 				WebComic.SetLogOutput(logOutput);
 				ScriptConsole.Show();
 			}

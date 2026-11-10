@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using cYo.Common.IO;
 using cYo.Common.Windows.Forms.Theme;
 using cYo.Projects.ComicRack.Engine;
@@ -86,9 +87,10 @@ internal sealed class ScriptsFolder : IDisposable
 
 	public LoadedPlugins Load()
 	{
+		PluginConsole.Install();
 		PluginEngine engine = new PluginEngine();
 		engine.Initialize(new StubEnvironment(), Scripts);
-		return new LoadedPlugins(engine);
+		return new LoadedPlugins(engine, Root);
 	}
 
 	public void Dispose()
@@ -106,16 +108,91 @@ internal sealed class ScriptsFolder : IDisposable
 
 internal sealed class LoadedPlugins
 {
-	public LoadedPlugins(PluginEngine engine)
+	private readonly string root;
+
+	public LoadedPlugins(PluginEngine engine, string root)
 	{
 		Engine = engine;
+		this.root = root;
 	}
 
 	public PluginEngine Engine { get; }
 
+	public string ConsoleLinesAboutThisFixture => PluginConsole.LinesMentioning(root);
+
 	public IEnumerable<string> Hooks(string key) => Engine.GetAllCommands().Where(c => c.Key == key).Select(c => c.Hook);
 
 	public Command Command(string key, string hook) => Engine.GetAllCommands().SingleOrDefault(c => c.Key == key && c.Hook == hook);
+}
+
+// The script console is one static stream for the process, so tests find their own lines by a text only they write.
+internal static class PluginConsole
+{
+	private static readonly CaptureStream capture = new CaptureStream();
+
+	public static void Install()
+	{
+		Command.Output = capture;
+		Command.EnableLog = true;
+	}
+
+	public static string LinesMentioning(string text)
+	{
+		return string.Join("\n", capture.Text.Split('\n').Where(line => line.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0).Select(line => line.TrimEnd('\r')));
+	}
+
+	private sealed class CaptureStream : Stream
+	{
+		private readonly StringBuilder text = new StringBuilder();
+
+		public string Text
+		{
+			get
+			{
+				lock (text)
+				{
+					return text.ToString();
+				}
+			}
+		}
+
+		public override bool CanRead => false;
+
+		public override bool CanSeek => false;
+
+		public override bool CanWrite => true;
+
+		public override long Length => throw new NotSupportedException();
+
+		public override long Position
+		{
+			get => throw new NotSupportedException();
+			set => throw new NotSupportedException();
+		}
+
+		public override void Write(byte[] buffer, int offset, int count)
+		{
+			lock (text)
+			{
+				text.Append(Encoding.UTF8.GetString(buffer, offset, count));
+			}
+		}
+
+		public override void Flush()
+		{
+		}
+
+		// Command.LogDefault closes its writer after every line; the console has to outlive that.
+		protected override void Dispose(bool disposing)
+		{
+		}
+
+		public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+		public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+		public override void SetLength(long value) => throw new NotSupportedException();
+	}
 }
 
 internal static class Source
