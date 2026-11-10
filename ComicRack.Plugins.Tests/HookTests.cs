@@ -90,7 +90,7 @@ public class HookTests
 		await Assert.That(((IEnumerable<ComicBook>)list).Count()).IsEqualTo(2);
 		await Assert.That(proposed.Series).IsEqualTo("Parsed");
 		await Assert.That(((Dictionary<string, string>)found)["series saga"]).IsEqualTo("-1");
-		await Assert.That(mayClose).IsEqualTo(false);
+		await Assert.That((bool)mayClose).IsFalse();
 		await Assert.That(((Control)infoControl).Text).IsEqualTo("info");
 		await Assert.That(quickHtml).IsEqualTo("quick 2");
 		await Assert.That(((Control)quickControl).Text).IsEqualTo("quick");

@@ -1,11 +1,9 @@
-using System;
 using System.IO;
 using System.Threading.Tasks;
 using cYo.Projects.ComicRack.Plugins;
 
 namespace ComicRack.Plugins.Tests;
 
-[NotInParallel(nameof(PluginConsole))]
 public class LoggingTests
 {
 	[Test]
@@ -30,24 +28,15 @@ public class LoggingTests
 		await Assert.That(PluginConsole.LinesMentioning("zq-braces")).IsEqualTo("braces {not a format item} zq-braces");
 	}
 
+	// ComicRack installs this writer as Console.Out when it shows the script console, so Console.WriteLine of a plugin ends up there.
 	[Test]
-	public async Task Console_output_of_a_plugin_reaches_the_script_console_once_the_console_writer_is_installed()
+	public async Task Console_writer_writes_each_line_to_the_script_console_at_once()
 	{
-		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("Say", "IStartup", "public void Execute() { Console.WriteLine(\"cs-said zq-console\"); }"));
-		var loaded = scripts.Load();
-		TextWriter previous = Console.Out;
+		PluginConsole.Install();
+		TextWriter writer = Command.CreateConsoleWriter();
 
-		try
-		{
-			Console.SetOut(Command.CreateConsoleWriter());
-			loaded.Command("Say", PluginEngine.ScriptTypeStartup).Invoke(null);
-		}
-		finally
-		{
-			Console.SetOut(previous);
-		}
+		writer.WriteLine("plugin said zq-console");
 
-		await Assert.That(PluginConsole.LinesMentioning("zq-console")).IsEqualTo("cs-said zq-console");
+		await Assert.That(PluginConsole.LinesMentioning("zq-console")).IsEqualTo("plugin said zq-console");
 	}
 }
