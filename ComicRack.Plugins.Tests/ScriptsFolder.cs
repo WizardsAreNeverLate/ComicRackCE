@@ -31,7 +31,10 @@ internal sealed class ScriptsFolder : IDisposable
 	{
 		Root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ComicRack.Plugins.Tests", Guid.NewGuid().ToString("N"))).FullName;
 		Scripts = Directory.CreateDirectory(Path.Combine(Root, "Scripts")).FullName;
+		Cache = Path.Combine(Root, "Cache");
 	}
+
+	public string Cache { get; }
 
 	public string Root { get; }
 
@@ -88,7 +91,7 @@ internal sealed class ScriptsFolder : IDisposable
 	public LoadedPlugins Load()
 	{
 		PluginConsole.Install();
-		PluginEngine engine = new PluginEngine();
+		PluginEngine engine = new PluginEngine(Cache);
 		engine.Initialize(new StubEnvironment(), Scripts);
 		return new LoadedPlugins(engine, Root);
 	}

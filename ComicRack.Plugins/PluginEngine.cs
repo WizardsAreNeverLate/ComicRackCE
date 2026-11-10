@@ -12,12 +12,7 @@ namespace cYo.Projects.ComicRack.Plugins
 {
 	public class PluginEngine : IDisposable
 	{
-		private readonly PluginInitializer[] initializers =
-		[
-			new XmlPluginInitializer(),
-			new PythonPluginInitializer(),
-			new DotNetPluginInitializer()
-		];
+		private readonly PluginInitializer[] initializers;
 
 		public const string ScriptTypeCreateBookList = "CreateBookList";
 
@@ -151,6 +146,18 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private bool disposed;
 
+		/// <param name="sourcePluginCachePath">The folder that keeps the compiled assemblies of source plugins (.csplugin). The default is a folder in the temporary files of the user.</param>
+		public PluginEngine(string sourcePluginCachePath = null)
+		{
+			initializers =
+			[
+				new XmlPluginInitializer(),
+				new PythonPluginInitializer(),
+				new DotNetPluginInitializer(),
+				new CSharpSourcePluginInitializer(sourcePluginCachePath ?? Path.Combine(Path.GetTempPath(), "ComicRack", "PluginCache"))
+			];
+		}
+
 		private CommandCollection Commands => commands;
 
 		public string CommandStates
@@ -191,7 +198,9 @@ namespace cYo.Projects.ComicRack.Plugins
 		{
 			List<Command> list = new List<Command>();
 			string[] hooks = ValidHooks.Keys.ToArray();
-			foreach (string file in FileUtility.GetFiles(path, SearchOption.AllDirectories))
+			List<string> files = FileUtility.GetFiles(path, SearchOption.AllDirectories).ToList();
+			List<string> sourcePluginFolders = files.Where(CSharpSourcePluginInitializer.IsMarker).Select(Path.GetDirectoryName).ToList();
+			foreach (string file in files.Where((string f) => !CSharpSourcePluginInitializer.IsShadowedBySource(f, sourcePluginFolders)))
 			{
 				foreach (Command cmd in initializers.SelectMany((PluginInitializer si) => si.GetCommands(file)))
 				{

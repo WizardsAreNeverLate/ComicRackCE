@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>cYo.Projects.ComicRack.Plugins.Compiler</RootNamespace>
+    <!-- Roslyn ships its messages in 13 languages; ComicRack logs the English ones. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The projects that reference this one get the Roslyn DLLs in their output, but cannot compile against Roslyn. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="compile" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ComicRack.Plugins\ComicRack.Plugins.csproj" />
+  </ItemGroup>
+</Project>
