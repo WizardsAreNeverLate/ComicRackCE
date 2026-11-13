@@ -917,7 +917,8 @@ namespace cYo.Projects.ComicRack.Viewer
 			if (ExtendedSettings.ShowScriptConsole)
 			{
 				ScriptConsole = new ScriptOutputForm();
-				TextBoxStream logOutput = (TextBoxStream)(Command.Output = new TextBoxStream(ScriptConsole.Log));
+				TextBoxStream logOutput = new TextBoxStream(ScriptConsole.Log);
+				Command.SetLogOutput(logOutput);
 				Command.EnableLog = true;
 				Console.SetOut(Command.CreateConsoleWriter());
 				WebComic.SetLogOutput(logOutput);
@@ -1074,6 +1075,7 @@ namespace cYo.Projects.ComicRack.Viewer
 		{
 			try
 			{
+				ScriptUtility.Scripts?.Dispose();
 				NetworkManager.Dispose();
 				SystemEvents.PowerModeChanged -= SystemEventsPowerModeChanged;
 				QueueManager.Dispose();
