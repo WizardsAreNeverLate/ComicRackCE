@@ -12,10 +12,8 @@ public class ConsoleOutputTests
 	public async Task Console_output_of_a_plugin_reaches_the_script_console_once_the_console_writer_is_installed()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(
-			"private readonly IPluginEnvironment env;\n" +
-			"public Plugin(IPluginEnvironment env) { this.env = env; }\n" +
-			"[PluginCommand(PluginHook.Startup, Key = \"Say\")] public void Say() { Console.WriteLine(\"cs-said \" + env.CommandPath); }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Say", "IStartup",
+			"public void Execute() { Console.WriteLine(\"cs-said \" + ComicRack.CommandPath); }"));
 		var loaded = scripts.Load();
 		TextWriter previous = Console.Out;
 
@@ -35,10 +33,9 @@ public class ConsoleOutputTests
 	[Test]
 	public async Task Console_writer_discards_output_when_no_script_console_exists()
 	{
-		Stream previous = Command.Output;
 		try
 		{
-			Command.Output = null;
+			Command.SetLogOutput(null);
 			TextWriter writer = Command.CreateConsoleWriter();
 
 			writer.WriteLine("nobody listens");
@@ -47,7 +44,7 @@ public class ConsoleOutputTests
 		}
 		finally
 		{
-			Command.Output = previous;
+			PluginConsole.Install();
 		}
 	}
 }

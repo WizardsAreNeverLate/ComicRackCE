@@ -154,7 +154,6 @@ namespace cYo.Projects.ComicRack.Plugins
 				new XmlPluginInitializer(),
 				new PythonPluginInitializer(),
 				new DotNetPluginInitializer(),
-				new AttributePluginInitializer(),
 				sourceInitializer
 			];
 		}
@@ -271,12 +270,8 @@ namespace cYo.Projects.ComicRack.Plugins
 		{
 			if (disposing)
 			{
-				List<Command> all = commands
+				IEnumerable<DotNetPlugin> plugins = commands
 					.SelectMany((Command c) => new[] { c, c.Configure })
-					.Distinct()
-					.ToList();
-
-				IEnumerable<DotNetPlugin> plugins = all
 					.OfType<DotNetCommand>()
 					.Select((DotNetCommand c) => c.Plugin)
 					.Distinct();
@@ -290,18 +285,6 @@ namespace cYo.Projects.ComicRack.Plugins
 					catch (Exception e)
 					{
 						Command.LogDefault("Failed to dispose .NET plugin '{0}': {1}", plugin.Key, e.Message);
-					}
-				}
-
-				foreach (IDisposable disposable in all.OfType<IDisposable>())
-				{
-					try
-					{
-						disposable.Dispose();
-					}
-					catch (Exception e)
-					{
-						Command.LogDefault("Failed to dispose plugin command '{0}': {1}", ((Command)disposable).Key, e.Message);
 					}
 				}
 			}

@@ -12,14 +12,14 @@ namespace ComicRack.Plugins.Tests;
 
 public class LoadingSafetyTests
 {
-	private const string StartupPlugin = "[PluginCommand(PluginHook.Startup, Key = \"Survivor\")] public static void Run() { }";
+	private static readonly string StartupPlugin = Source.Plugin("Survivor", "IStartup", "public void Execute() { }");
 
 	[Test]
 	public async Task Dll_that_does_not_reference_the_plugin_api_is_never_execution_loaded()
 	{
 		using var scripts = new ScriptsFolder();
 		string library = scripts.Compile(@"Scripts\Mine", Source.Types("public class Library { public static int Answer() { return 42; } }"));
-		string plugin = scripts.Compile(@"Scripts\Mine", Source.Plugin(StartupPlugin));
+		string plugin = scripts.Compile(@"Scripts\Mine", StartupPlugin);
 
 		var loaded = scripts.Load();
 
@@ -44,7 +44,7 @@ public class LoadingSafetyTests
 				File.WriteAllBytes(junk, new byte[0]);
 				break;
 		}
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(StartupPlugin));
+		scripts.Compile(@"Scripts\Mine", StartupPlugin);
 
 		var loaded = scripts.Load();
 
@@ -56,10 +56,10 @@ public class LoadingSafetyTests
 	public async Task Type_with_a_base_class_in_a_missing_assembly_is_skipped_and_the_rest_of_the_dll_loads()
 	{
 		using var scripts = new ScriptsFolder();
-		string missing = scripts.Compile("Elsewhere", "namespace Missing { public class Base { } }");
+		string missing = scripts.Compile("Elsewhere", "namespace Missing { public abstract class Base : cYo.Projects.ComicRack.Plugins.DotNetPlugin { } }");
 		scripts.Compile(@"Scripts\Mine", Source.Types(
-			"public class Broken : Missing.Base { [PluginCommand(PluginHook.Startup, Key = \"Broken\")] public void Run() { } }\n" +
-			"public class Plugin { " + StartupPlugin + " }"), missing);
+			"public class Broken : Missing.Base {\n" + Source.PluginKey("Broken") + "\n}\n" +
+			"public class Plugin : DotNetPlugin, IStartup {\n" + Source.PluginKey("Survivor") + "\npublic void Execute() { }\n}"), missing);
 
 		var loaded = scripts.Load();
 
@@ -73,7 +73,7 @@ public class LoadingSafetyTests
 	{
 		using var scripts = new ScriptsFolder();
 		string helper = scripts.Compile(@"Scripts\Mine", "namespace Helper { public static class Stamp { public static string Text() { return \"from helper\"; } } }");
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.ComicInfoHtml, Key = \"M\")] public string M(ComicBook[] books) { return Helper.Stamp.Text(); }"), helper);
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("M", "IComicInfoHtml", "public string Execute(ComicBook[] books) { return Helper.Stamp.Text(); }"), helper);
 
 		var command = scripts.Load().Command("M");
 
@@ -84,7 +84,7 @@ public class LoadingSafetyTests
 	public async Task Second_copy_of_a_loaded_plugin_adds_no_commands_and_is_reported()
 	{
 		using var scripts = new ScriptsFolder();
-		string first = scripts.Compile(@"Scripts\A", Source.Plugin(StartupPlugin));
+		string first = scripts.Compile(@"Scripts\A", StartupPlugin);
 		string second = scripts.PathTo(@"Scripts\B\" + Path.GetFileName(first));
 		File.Copy(first, second);
 
@@ -99,7 +99,7 @@ public class LoadingSafetyTests
 	public async Task Plugin_marked_as_downloaded_from_the_internet_is_blocked_and_the_console_says_how_to_unblock()
 	{
 		using var scripts = new ScriptsFolder();
-		string plugin = scripts.Compile(@"Scripts\Mine", Source.Plugin(StartupPlugin));
+		string plugin = scripts.Compile(@"Scripts\Mine", StartupPlugin);
 		MarkAsDownloaded(plugin);
 
 		var loaded = scripts.Load();

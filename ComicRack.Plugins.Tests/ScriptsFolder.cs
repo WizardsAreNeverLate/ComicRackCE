@@ -120,7 +120,7 @@ internal static class PluginConsole
 
 	public static void Install()
 	{
-		Command.Output = capture;
+		Command.SetLogOutput(capture);
 		Command.EnableLog = true;
 	}
 
@@ -186,7 +186,13 @@ internal static class Source
 {
 	private const string Usings = "using System; using System.Collections.Generic; using cYo.Projects.ComicRack.Engine; using cYo.Projects.ComicRack.Plugins;\n";
 
-	public static string Plugin(string members) => Types("public class Plugin {\n" + members + "\n}");
+	// A DotNetPlugin class named Plugin. The fixture compiler is C# 5, so the Key is a property with a body and not an initializer.
+	public static string Plugin(string key, string hooks, string members)
+	{
+		return Types("public class Plugin : DotNetPlugin, " + hooks + " {\n" + PluginKey(key) + "\n" + members + "\n}");
+	}
+
+	public static string PluginKey(string key) => "public override string Key { get { return \"" + key + "\"; } set { } }";
 
 	public static string Types(string types) => Usings + "namespace Fixture {\n" + types + "\n}";
 }

@@ -19,18 +19,6 @@ namespace cYo.Projects.ComicRack.Plugins
 
 		private Keys shortCutKeys;
 
-		public static Stream Output
-		{
-			get;
-			set;
-		}
-
-		public static bool EnableLog
-		{
-			get;
-			set;
-		}
-
 		[XmlAttribute]
 		[DefaultValue(null)]
 		public string Hook
@@ -139,6 +127,18 @@ namespace cYo.Projects.ComicRack.Plugins
 			}
 		}
 
+		public static bool EnableLog
+		{
+			get;
+			set;
+		}
+
+		protected static Stream Output
+		{
+			get;
+			private set;
+		}
+
 		public bool Initialize(IPluginEnvironment env, string path)
 		{
 			try
@@ -214,6 +214,10 @@ namespace cYo.Projects.ComicRack.Plugins
 			return file;
 		}
 
+		protected virtual void Log(string text, params object[] o)
+		{
+		}
+
 		public static TextWriter CreateConsoleWriter()
 		{
 			Stream output = Output;
@@ -229,10 +233,6 @@ namespace cYo.Projects.ComicRack.Plugins
 					streamWriter.WriteLine(text, o);
 				}
 			}
-		}
-
-		protected virtual void Log(string text, params object[] o)
-		{
 		}
 
 		public static void SetLogOutput(Stream ts)

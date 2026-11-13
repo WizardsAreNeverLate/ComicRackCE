@@ -1,11 +1,11 @@
 using System;
 using System.Windows.Forms;
 using cYo.Projects.ComicRack.Engine;
+using cYo.Projects.ComicRack.Plugins;
 
 namespace SamplePlugin
 {
-	// ComicRack calls ShowInfo through dynamic binding, so this class and the method must stay public.
-	public class BookFieldEditor : UserControl
+	public class BookFieldEditor : UIControl
 	{
 		private sealed class BookField
 		{
@@ -83,7 +83,7 @@ namespace SamplePlugin
 
 		private BookField Field => (BookField)fieldPicker.SelectedItem;
 
-		public void ShowInfo(ComicBook[] books)
+		public override void ShowInfo(ComicBook[] books)
 		{
 			this.books = books ?? new ComicBook[0];
 			selection.Text = this.books.Length == 1 ? "1 book selected" : this.books.Length + " books selected";

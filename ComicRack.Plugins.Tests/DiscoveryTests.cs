@@ -7,12 +7,14 @@ namespace ComicRack.Plugins.Tests;
 public class DiscoveryTests
 {
 	[Test]
-	public async Task Attributed_method_becomes_a_command_with_the_attribute_metadata()
+	public async Task Plugin_properties_become_the_command_metadata()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(
-			"[PluginCommand(PluginHook.Books, Name = \"Stamp\", Key = \"My.Stamp\", Description = \"Stamps books\", Enabled = false, PCount = 2)]\n" +
-			"public void Run(ComicBook[] books) { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("My.Stamp", "IBooks",
+			"public override string Name { get { return \"Stamp\"; } set { } }\n" +
+			"public override string Description { get { return \"Stamps books\"; } set { } }\n" +
+			"public override bool Enabled { get { return false; } set { } }\n" +
+			"public void Execute(ComicBook[] books) { }"));
 
 		var command = scripts.Load().Command("My.Stamp");
 
@@ -23,86 +25,63 @@ public class DiscoveryTests
 			await Assert.That(command.Name).IsEqualTo("Stamp");
 			await Assert.That(command.Description).IsEqualTo("Stamps books");
 			await Assert.That(command.Enabled).IsFalse();
-			await Assert.That(command.PCount).IsEqualTo(2);
 		}
 	}
 
 	[Test]
-	public async Task Key_defaults_to_namespace_type_and_method_and_name_to_the_method()
+	public async Task Name_defaults_to_the_key()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook.Startup)] public void Run() { }"));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Fixture.Plugin", "IStartup", "public void Execute() { }"));
 
-		var command = scripts.Load().Command("Fixture.Plugin.Run");
+		var command = scripts.Load().Command("Fixture.Plugin");
 
-		await Assert.That(command).IsNotNull();
-		await Assert.That(command.Name).IsEqualTo("Run");
+		await Assert.That(command.Name).IsEqualTo("Fixture.Plugin");
 	}
 
 	[Test]
-	[Arguments("Books", "public void M(string s) { }", "expected Action<ComicBook[]>")]
-	[Arguments("Books", "public void M(ComicBook[] books, int extra) { }", "expected Action<ComicBook[]>")]
-	[Arguments("Startup", "public void M(int x) { }", "expected Action")]
-	[Arguments("Startup", "public int M() { return 0; }", "expected Action")]
-	[Arguments("Shutdown", "public void M(bool userClosing) { }", "expected Func<Boolean, Boolean>")]
-	[Arguments("ComicInfoHtml", "public void M(ComicBook[] books) { }", "expected Func<ComicBook[], String>")]
-	public async Task Method_whose_signature_does_not_match_its_hook_is_rejected_and_the_console_names_the_expected_signature(string hook, string method, string expected)
+	public async Task PCount_of_a_smart_list_plugin_becomes_the_command_PCount()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook." + hook + ", Key = \"M\")] " + method));
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Smart", "ICreateBookList",
+			"public int PCount { get { return 2; } set { } }\n" +
+			"public IEnumerable<ComicBook> Execute(ComicBook[] books, string a, string b) { return books; }"));
 
-		var loaded = scripts.Load();
+		var command = scripts.Load().Command("Smart");
 
-		await Assert.That(loaded.Command("M")).IsNull();
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.M'").And.Contains(expected);
+		await Assert.That(command.Hook).IsEqualTo("CreateBookList");
+		await Assert.That(command.PCount).IsEqualTo(2);
 	}
 
 	[Test]
-	[Arguments("PluginHook.None", "no hook given")]
-	[Arguments("(PluginHook)(1 << 30)", "unknown hook value 1073741824")]
-	[Arguments("PluginHook.Startup | (PluginHook)(1 << 30)", "unknown hook value 1073741824")]
-	public async Task Invalid_hook_value_is_rejected_and_the_console_gives_the_reason(string hook, string reason)
+	[Arguments("IBooks, IEditor", "Books,Editor")]
+	[Arguments("ILibrary, IBooks", "Library,Books")]
+	[Arguments("IBooks, IStartup", "Books,Startup")]
+	public async Task Plugin_gets_one_command_for_each_hook_interface_it_implements(string interfaces, string engineHooks)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(" + hook + ", Key = \"M\")] public void M() { }"));
+		string members = interfaces.Contains("IStartup")
+			? "public void Execute(ComicBook[] books) { }\npublic void Execute() { }"
+			: "public void Execute(ComicBook[] books) { }";
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("M", interfaces, members));
 
 		var loaded = scripts.Load();
 
-		await Assert.That(loaded.Command("M")).IsNull();
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.M'").And.Contains(reason);
-	}
-
-	[Test]
-	[Arguments("PluginHook.Books | PluginHook.Editor", "Books,Editor")]
-	[Arguments("PluginHook.Library | PluginHook.Books", "Library,Books")]
-	[Arguments("PluginHook.Books | PluginHook.Startup", null)]
-	public async Task Every_hook_in_a_combination_must_match_the_signature_and_the_command_answers_to_each(string hooks, string engineHook)
-	{
-		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(" + hooks + ", Key = \"M\")] public void M(ComicBook[] books) { }"));
-
-		var loaded = scripts.Load();
-
-		if (engineHook == null)
-		{
-			await Assert.That(loaded.Keys).IsEmpty();
-			return;
-		}
-		await Assert.That(loaded.Command("M").Hook).IsEqualTo(engineHook);
-		foreach (string hook in engineHook.Split(','))
+		await Assert.That(loaded.Engine.GetAllCommands().Select(c => c.Hook)).IsEquivalentTo(engineHooks.Split(','));
+		foreach (string hook in engineHooks.Split(','))
 		{
 			await Assert.That(loaded.Engine.GetCommands(hook).Select(c => c.Key)).Contains("M");
 		}
 	}
 
 	[Test]
-	public async Task Configure_method_named_by_the_attribute_becomes_the_commands_Configure_action_on_the_same_instance()
+	public async Task IConfig_of_a_plugin_becomes_the_Configure_action_of_its_other_commands_on_the_same_instance()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("Tool", "IBooks, IConfig",
 			"private int configured;\n" +
-			"[PluginCommand(PluginHook.Books, Key = \"Tool\", Configure = \"Settings\")] public void Run(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
-			"public void Settings() { configured++; }"));
+			"public void Execute(ComicBook[] books) { books[0].Notes = \"configured \" + configured; }\n" +
+			"public void Execute() { configured++; }"));
 		var loaded = scripts.Load();
 		var tool = loaded.Command("Tool");
 		var book = new ComicBook();
@@ -116,69 +95,57 @@ public class DiscoveryTests
 	}
 
 	[Test]
-	public async Task Configure_pairs_with_a_command_whose_key_defaults_to_the_method_name_and_may_be_static()
+	[Arguments("public Plugin(int x) { }")]
+	[Arguments("private Plugin() { }")]
+	public async Task Plugin_class_without_a_public_parameterless_constructor_is_skipped_and_the_rest_of_the_dll_loads(string constructor)
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(
-			"public static int Configured;\n" +
-			"[PluginCommand(PluginHook.ComicInfoHtml, Configure = \"Settings\")] public string Run(ComicBook[] books) { return Configured.ToString(); }\n" +
-			"public static void Settings() { Configured++; }"));
-		var loaded = scripts.Load();
-
-		var run = loaded.Command("Fixture.Plugin.Run");
-		run.Configure.Invoke(null);
-
-		await Assert.That(run.Invoke(new object[] { new ComicBook[0] })).IsEqualTo("1");
-		await Assert.That(run.Configure.Key).IsEqualTo("Fixture.Plugin.Run");
-		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "Fixture.Plugin.Run" });
-	}
-
-	[Test]
-	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Missing\")] public void M() { }", "'Missing'")]
-	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic void Settings(int x) { }", "'Settings'")]
-	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic int Settings() { return 0; }", "'Settings'")]
-	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\npublic void Settings() { }\npublic void Settings(int x) { }", "'Settings'")]
-	[Arguments("[PluginCommand(PluginHook.Startup, Key = \"M\", Configure = \"Settings\")] public void M() { }\nprivate void Settings() { }", "'Settings'")]
-	public async Task Command_with_an_unusable_configure_method_is_skipped_and_the_console_names_the_method(string members, string method)
-	{
-		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(members));
+		scripts.Compile(@"Scripts\Mine", Source.Types(
+			"public class Plugin : DotNetPlugin, IStartup {\n" + Source.PluginKey("Broken") + "\n" + constructor + "\npublic void Execute() { }\n}\n" +
+			"public class Other : DotNetPlugin, IStartup {\n" + Source.PluginKey("Other") + "\npublic void Execute() { }\n}"));
 
 		var loaded = scripts.Load();
 
-		await Assert.That(loaded.Command("M")).IsNull();
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.M'").And.Contains(method);
+		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "Other" });
+		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin'");
 	}
 
 	[Test]
-	[Arguments("Books", "public void M(IEnumerable<ComicBook> books) { }")]
-	[Arguments("Books", "public void M(object books) { }")]
-	[Arguments("BookOpened", "public void M(object book) { }")]
-	[Arguments("CreateBookList", "public ComicBook[] M(ComicBook[] books, string a, string b) { return books; }")]
-	public async Task Parameter_and_return_types_compatible_with_the_hook_are_accepted(string hook, string method)
+	public async Task Abstract_class_is_a_base_for_other_plugins_and_not_a_plugin()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin("[PluginCommand(PluginHook." + hook + ", Key = \"M\")] " + method));
-
-		await Assert.That(scripts.Load().Command("M")).IsNotNull();
-	}
-
-	[Test]
-	[Arguments("public class Plugin { public Plugin(int x) { } ")]
-	[Arguments("public class Plugin { private Plugin() { } ")]
-	[Arguments("public abstract class Plugin { ")]
-	public async Task Class_without_a_usable_constructor_keeps_its_static_commands_only(string classHeader)
-	{
-		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Types(classHeader +
-			"[PluginCommand(PluginHook.Startup, Key = \"Instance\")] public void Run() { }\n" +
-			"[PluginCommand(PluginHook.ComicInfoHtml, Key = \"Static\")] public static string Html(ComicBook[] books) { return \"static ok\"; }\n" +
-			"}"));
+		scripts.Compile(@"Scripts\Mine", Source.Types(
+			"public abstract class Base : DotNetPlugin, IStartup { public void Execute() { } }\n" +
+			"public class Derived : Base {\n" + Source.PluginKey("Derived") + "\n}"));
 
 		var loaded = scripts.Load();
 
-		await Assert.That(loaded.Command("Instance")).IsNull();
-		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("'Fixture.Plugin.Run'").And.Contains("constructor");
-		await Assert.That(loaded.Command("Static")?.Invoke(new object[] { new ComicBook[0] })).IsEqualTo("static ok");
+		await Assert.That(loaded.Keys).IsEquivalentTo(new[] { "Derived" });
+	}
+
+	[Test]
+	public async Task Plugin_with_an_empty_key_is_skipped_and_the_console_says_so()
+	{
+		using var scripts = new ScriptsFolder();
+		scripts.Compile(@"Scripts\Mine", Source.Plugin("", "IStartup", "public void Execute() { }"));
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Keys).IsEmpty();
+		await Assert.That(loaded.ConsoleLinesAboutThisFixture).Contains("the Key is empty");
+	}
+
+	[Test]
+	public async Task Second_plugin_with_a_key_that_is_already_taken_is_skipped_and_the_console_says_so()
+	{
+		using var scripts = new ScriptsFolder();
+		string members = "public static int Loaded;\nprotected override void OnLoad() { Loaded++; }\npublic void Execute(ComicBook[] books) { }";
+		scripts.Compile(@"Scripts\A", Source.Plugin("Same", "IBooks", members));
+		scripts.Compile(@"Scripts\B", Source.Plugin("Same", "IBooks", members));
+
+		var loaded = scripts.Load();
+
+		await Assert.That(loaded.Engine.GetAllCommands().Count()).IsEqualTo(1);
+		await Assert.That(PluginConsole.LinesMentioning("'Same.Books'")).Contains("already used by another plugin");
 	}
 }

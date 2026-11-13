@@ -5,7 +5,9 @@ namespace ComicRack.Plugins.Tests;
 
 public class IconTests
 {
-	private const string PluginWithIcon = "[PluginCommand(PluginHook.Books, Key = \"Tool\", Image = \"icon.png\")] public void Run(ComicBook[] books) { }";
+	private static readonly string PluginWithIcon = Source.Plugin("Tool", "IBooks",
+		"public override string Image { get { return \"icon.png\"; } set { } }\n" +
+		"public void Execute(ComicBook[] books) { }");
 
 	[Test]
 	public async Task Icon_missing_from_the_plugin_folder_is_taken_from_the_embedded_resources_of_the_plugin_dll()
@@ -16,7 +18,7 @@ public class IconTests
 		{
 			bitmap.Save(png, System.Drawing.Imaging.ImageFormat.Png);
 		}
-		scripts.CompileWithEmbeddedResource(@"Scripts\Mine", Source.Plugin(PluginWithIcon), png);
+		scripts.CompileWithEmbeddedResource(@"Scripts\Mine", PluginWithIcon, png);
 
 		var tool = scripts.Load().Command("Tool");
 
@@ -28,7 +30,7 @@ public class IconTests
 	public async Task Command_with_an_icon_that_exists_nowhere_still_loads_without_an_image()
 	{
 		using var scripts = new ScriptsFolder();
-		scripts.Compile(@"Scripts\Mine", Source.Plugin(PluginWithIcon));
+		scripts.Compile(@"Scripts\Mine", PluginWithIcon);
 
 		var tool = scripts.Load().Command("Tool");
 

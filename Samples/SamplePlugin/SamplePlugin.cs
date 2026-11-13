@@ -7,33 +7,47 @@ using cYo.Projects.ComicRack.Plugins;
 
 namespace SamplePlugin
 {
-	public class SamplePlugin
+	// A DotNetPlugin class has one Key and gets one command for each hook interface it implements,
+	// so every command of this sample is a class of its own.
+	public class StartupPlugin : DotNetPlugin, IStartup
 	{
-		private readonly IPluginEnvironment comicRack;
+		public override string Key { get; set; } = "SamplePlugin.SamplePlugin.Startup";
 
-		public SamplePlugin(IPluginEnvironment comicRack)
+		public override string Name { get; set; } = "Sample Startup";
+
+		public void Execute()
 		{
-			this.comicRack = comicRack;
+			Console.WriteLine("SamplePlugin started from " + ComicRack.CommandPath);
 		}
+	}
 
-		[PluginCommand(PluginHook.Startup, Name = "Sample Startup")]
-		public void Startup()
-		{
-			Console.WriteLine("SamplePlugin started from " + comicRack.CommandPath);
-		}
+	public class StampNotesPlugin : DotNetPlugin, IBooks, IEditor
+	{
+		public override string Key { get; set; } = "SamplePlugin.SamplePlugin.StampNotes";
 
-		[PluginCommand(PluginHook.Books | PluginHook.Editor, Name = "Stamp Notes", Description = "Adds a line to the notes of each selected book")]
-		public void StampNotes(ComicBook[] books)
+		public override string Name { get; set; } = "Stamp Notes";
+
+		public override string Description { get; set; } = "Adds a line to the notes of each selected book";
+
+		public void Execute(ComicBook[] books)
 		{
-			string stamp = "Stamped by " + Path.GetFileName(comicRack.CommandPath);
+			string stamp = "Stamped by " + Path.GetFileName(ComicRack.CommandPath);
 			foreach (ComicBook book in books)
 			{
 				book.Notes = string.IsNullOrEmpty(book.Notes) ? stamp : book.Notes + Environment.NewLine + stamp;
 			}
 		}
+	}
 
-		[PluginCommand(PluginHook.Books, Name = "Edit Field...", Description = "Opens a dialog that sets a field on the selected books")]
-		public void EditFieldDialog(ComicBook[] books)
+	public class EditFieldDialogPlugin : DotNetPlugin, IBooks
+	{
+		public override string Key { get; set; } = "SamplePlugin.SamplePlugin.EditFieldDialog";
+
+		public override string Name { get; set; } = "Edit Field...";
+
+		public override string Description { get; set; } = "Opens a dialog that sets a field on the selected books";
+
+		public void Execute(ComicBook[] books)
 		{
 			using (Form dialog = new Form())
 			{
@@ -50,16 +64,24 @@ namespace SamplePlugin
 				dialog.CancelButton = close;
 				dialog.Controls.Add(editor);
 				dialog.Controls.Add(buttons);
-				comicRack.Theme.ApplyTheme(dialog);
-				dialog.ShowDialog(comicRack.MainWindow);
+				ComicRack.Theme.ApplyTheme(dialog);
+				dialog.ShowDialog(ComicRack.MainWindow);
 			}
 		}
+	}
 
-		[PluginCommand(PluginHook.ComicInfoUI, Name = "Field Editor", Description = "A sidebar panel that sets a field on the selected books")]
-		public Control FieldEditorPanel()
+	public class FieldEditorPanelPlugin : DotNetPlugin, IComicInfoUI
+	{
+		public override string Key { get; set; } = "SamplePlugin.SamplePlugin.FieldEditorPanel";
+
+		public override string Name { get; set; } = "Field Editor";
+
+		public override string Description { get; set; } = "A sidebar panel that sets a field on the selected books";
+
+		public UIControl Execute()
 		{
 			BookFieldEditor editor = new BookFieldEditor();
-			comicRack.Theme.ApplyTheme(editor);
+			ComicRack.Theme.ApplyTheme(editor);
 			return editor;
 		}
 	}
