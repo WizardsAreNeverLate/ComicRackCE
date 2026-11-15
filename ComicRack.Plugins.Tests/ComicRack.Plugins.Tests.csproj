@@ -17,6 +17,7 @@
     <ProjectReference Include="..\ComicRack.Engine\ComicRack.Engine.csproj" />
     <ProjectReference Include="..\cYo.Common.Windows\cYo.Common.Windows.csproj" />
     <ProjectReference Include="..\Samples\SamplePlugin\SamplePlugin.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Samples\ComicInfoSidecarPlugin\ComicInfoSidecarPlugin.csproj" />
   </ItemGroup>
   <Target Name="CopySamplePackage" AfterTargets="Build">
     <MSBuild Projects="..\Samples\SamplePlugin\SamplePlugin.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
